@@ -1,3 +1,5 @@
 include README.md
 include docs/*.txt
+include vaxtools/scPCR/*
 include vaxtools/scPCR/indexes/*
+include vaxtools/utils/*
