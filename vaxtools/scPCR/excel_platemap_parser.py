@@ -31,67 +31,102 @@ import string
 
 from openpyxl import load_workbook
 
-from vaxtools.scPCR.containers import Well, Sample, Plate
+from vaxtools.utils.containers import Well, Sample, Plate
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-i', '--input', dest='input', required=True,
-					help="The input file, in Excel format. Required.")
-parser.add_argument('-o', '--out', dest='output', required=True,
-					help="The output directory, into which the map files will be deposited. \
-					If the directory does not exist, it will be created. \
-					Required.")
-parser.add_argument('-e', '--experiment', dest='experiment', default=None,
-					help="Name of the experiment. \
-					If not supplied, the input filename (after removing the .xlsx extension) \
-					will be used.")
-parser.add_argument('--plate-prefix', default='plate',
-					help="Prefix for plate filenames, if names aren't to be parsed from the platemap file. \
-					Default is 'plate'.")
-parser.add_argument('--plate-numbering-start', default=1, type=int,
-					help="Number at which to start the plate numbering, if not parsing plate names. \
-					Default is 1.")
-parser.add_argument('--plate-delim-prefix', required=True,
-					help='Text at the start of a well marking the boundary between two plates. \
-					Often, the best choice is the well with the plate name (if part of the platemap) \
-					or the sample row. Required.')
-parser.add_argument('--plate-delim-well-number', required=True, type=int,
-					help="The well number (using 1-based indexing) of the plate delimiter well. \
-					Used in conjunction with --plate-delim-row-number. \
-					Required.")
-parser.add_argument('--plate-name-row-number', default=None, type=int,
-					help="The number of rows between the plate delimiter row and the row containing \
-					the plate name. Only required if parsing plate names. \
-					Default is None, which results in plate names not being parsed.")
-parser.add_argument('--plate-name-well-number', default=None, type=int,
-					help="The well number (using 1-based indexing) of the plate name well. \
-					Used in conjunction with --plate-name-row-number. \
-					Default is None, which results in plate names not being parsed.")
-parser.add_argument('--sample-row-number', required=True, type=int,
-					help="The number of rows between the plate delimiter row and the row containing \
-					the sample names. Required.")
-parser.add_argument('--sample-well-number', required=True, type=int,
-					help="The well number (using 1-based indexing) of the first sample name. \
-					Used in conjunction with --sample-row-number. Required.")
-parser.add_argument('--sample-well-offset', default=1, type=int,
-					help="The number of wells each sample name occupies. \
-					Default (1) works in most circumstances, unless wells containing \
-					sample names are merged. If samples are in a merged 'well' that originally was \
-					two wells, use 2. For a merged three-well, use 3.")
-parser.add_argument('--max-sample-number', default=4, type=int,
-					help="Maximum number of samples in a single plate. Default is 4. \
-					Increase if there are more than four samples for any well in the platemap.")
-args = parser.parse_args()
+
+def parse_args():
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-i', '--input', dest='input', required=True,
+						help="The input file, in Excel format. Required.")
+	parser.add_argument('-o', '--out', dest='output', required=True,
+						help="The output directory, into which the map files will be deposited. \
+						If the directory does not exist, it will be created. \
+						Required.")
+	parser.add_argument('-e', '--experiment', dest='experiment', default=None,
+						help="Name of the experiment. \
+						If not supplied, the input filename (after removing the .xlsx extension) \
+						will be used.")
+	parser.add_argument('--plate-prefix', default='plate',
+						help="Prefix for plate filenames, if names aren't to be parsed from the platemap file. \
+						Default is 'plate'.")
+	parser.add_argument('--plate-numbering-start', default=1, type=int,
+						help="Number at which to start the plate numbering, if not parsing plate names. \
+						Default is 1.")
+	parser.add_argument('--plate-delim-prefix', required=True,
+						help='Text at the start of a well marking the boundary between two plates. \
+						Often, the best choice is the well with the plate name (if part of the platemap) \
+						or the sample row. Required.')
+	parser.add_argument('--plate-delim-well-number', required=True, type=int,
+						help="The well number (using 1-based indexing) of the plate delimiter well. \
+						Used in conjunction with --plate-delim-row-number. \
+						Required.")
+	parser.add_argument('--plate-name-row-number', default=None, type=int,
+						help="The number of rows between the plate delimiter row and the row containing \
+						the plate name. Only required if parsing plate names. \
+						Default is None, which results in plate names not being parsed.")
+	parser.add_argument('--plate-name-well-number', default=None, type=int,
+						help="The well number (using 1-based indexing) of the plate name well. \
+						Used in conjunction with --plate-name-row-number. \
+						Default is None, which results in plate names not being parsed.")
+	parser.add_argument('--sample-row-number', required=True, type=int,
+						help="The number of rows between the plate delimiter row and the row containing \
+						the sample names. Required.")
+	parser.add_argument('--sample-well-number', required=True, type=int,
+						help="The well number (using 1-based indexing) of the first sample name. \
+						Used in conjunction with --sample-row-number. Required.")
+	parser.add_argument('--sample-well-offset', default=1, type=int,
+						help="The number of wells each sample name occupies. \
+						Default (1) works in most circumstances, unless wells containing \
+						sample names are merged. If samples are in a merged 'well' that originally was \
+						two wells, use 2. For a merged three-well, use 3.")
+	parser.add_argument('--max-sample-number', default=4, type=int,
+						help="Maximum number of samples in a single plate. Default is 4. \
+						Increase if there are more than four samples for any well in the platemap.")
+	return parser.parse_args()
 
 
-def get_experiment():
+class Args(object):
+	"""docstring for Args"""
+	def __init__(self, input=None, output=None,
+		experiment=None, plate='plate',
+		plate_numbering_start=1, plate_delim_prefix=None,
+		plate_delim_well_number=None, plate_name_row_number=None,
+		sample_row_number=None, sample_well_number=None, sample_well_offset=1,
+		max_sample_number=4):
+		super(Args, self).__init__()
+
+		if not all([input, output, plate_delim_prefix, plate_delim_well_nmber, sample_row_number, sample_well_number]):
+			reqstring = '--input\n--output\n'
+			reqstring += '--plate-delim-prefix\n--plate-delim-well-number\n'
+			reqstring += '--sample-row-number\n--sample-well-number'
+			print('\nERROR: The following options are all required:\n')
+			print(reqstring)
+			print('')
+			sys.exit(1)
+
+		self.input = input
+		self.output = output
+		self.experiment = experiment
+		self.plate = plate
+		self.plate_numbering_start = int(plate_numbering_start)
+		self.plate_delim_prefix = plate_delim_prefix
+		self.plate_delim_well_number = int(plate_delim_well_number)
+		self.plate_name_row_number = int(plate_name_row_number) if plate_name_row_number else None
+		self.sample_row_number = int(sample_row_number) if sample_row_number else None
+		self.sample_well_number = int(sample_well_number) if sample_well_number else None
+		self.sample_well_offset = int(sample_well_offset)
+		self.max_sample_number = int(max_sample_number)
+
+
+def get_experiment(args):
 	if args.experiment:
 		return args.experiment
 	exp = os.path.basename(args.input).rstrip('.xlsx').rstrip('.xls')
 	return exp
 
 
-def get_plate_blocks(ws):
+def get_plate_blocks(ws, args):
 	num = args.plate_delim_well_number
 	prefix = args.plate_delim_prefix
 	plate_blocks = []
@@ -110,29 +145,7 @@ def get_plate_blocks(ws):
 	return plate_blocks
 
 
-def parse_plates(raw_plates):
-	# plates = []
-	# for i, rp in enumerate(raw_plates):
-	# 	plate_name = 'plate' + str(i + 1) if len(str(i + 1)) == 2 else 'plate0' + str(i + 1)
-	# 	wells = []
-	# 	for row in rp:
-	# 		cells = [cell for cell in row]
-	# 		cell_vals = [cell.value for cell in cells]
-	# 		if 'Sample name(s)' in cell_vals:
-	# 			start = cell_vals.index('Sample name(s)')
-	# 			samples = [Sample(cell) for cell in cells[start + 2:start + 9:2]]
-	# 		if not row[0].value:
-	# 			continue
-	# 		if str(row[0].value) not in string.ascii_uppercase[:8]:
-	# 			continue
-	# 		row_wells = [Well(cell) for cell in row[1:13]]
-	# 		for c, rw in enumerate(row_wells):
-	# 			r = str(row[0].value)
-	# 			rw.set_well(r, c + 1)
-	# 		wells += row_wells
-	# 	plates.append(Plate(plate_name, wells, samples))
-	# return plates
-
+def parse_plates(raw_plates, args):
 	plates = []
 	for i, rp in enumerate(raw_plates):
 		if args.plate_name_row_number is not None and args.plate_name_well_number is not None:
@@ -194,14 +207,8 @@ def parse_plate_grid(raw_plate):
 	return plate
 
 
-
-
-def write_output(plates, experiment):
+def write_output(plates, experiment, args):
 	for i, plate in enumerate(plates):
-		# num = str(i + args.plate_numbering_start)
-		# if len(num) < 2:
-		# 	num = '0' + num
-		# ohandle = open(os.path.join(args.output, '{}{}'.format(args.plate_prefix, num)), 'w')
 		ohandle = open(os.path.join(args.output, plate.name), 'w')
 		output = []
 		for well in plate.wells:
@@ -210,19 +217,24 @@ def write_output(plates, experiment):
 		ohandle.write('\n'.join(output))
 
 
-def main():
-	experiment = get_experiment()
+def run(**kwargs):
+	args = Args(**kwargs)
+	main(args)
+
+
+def main(args):
+	experiment = get_experiment(args)
 	wb = load_workbook(args.input)
 	ws = wb[wb.get_sheet_names()[0]]
-	plate_blocks = get_plate_blocks(ws)
+	plate_blocks = get_plate_blocks(ws, args)
 	plural = '' if len(plate_blocks) <= 2 else 's'
 	print('\nFound {} plate{} in the input file'.format(len(plate_blocks) - 1, plural))
 	print('Experiment name: {}\n'.format(experiment))
-	plates = parse_plates(plate_blocks[1:])
-	write_output(plates, experiment)
-	print()
-
+	plates = parse_plates(plate_blocks[1:], args)
+	write_output(plates, experiment, args)
+	print('')
 
 
 if __name__ == '__main__':
-	main()
+	args = parse_args()
+	main(args)
