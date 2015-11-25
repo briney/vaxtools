@@ -181,7 +181,7 @@ def _get_fasta_string(sequences):
 def local_alignment(query, target=None, targets=None, match=3, mismatch=-2, matrix=None,
 	gap_open_penalty=5, gap_extend_penalty=2, aa=False):
 	'''
-	Performs fast Striped Smith-Waterman local pairwise alignment
+	Wrapper for SSWAlignment, which performs fast Striped Smith-Waterman local pairwise alignment
 
 	Input: query and target sequences
 	Returns: a single SSWAlignment object or a list of multiple SSWAlignment objects
@@ -200,13 +200,13 @@ def local_alignment(query, target=None, targets=None, match=3, mismatch=-2, matr
 
 	default scoring parameters:
 		match = 3
-		mismatch = 2
+		mismatch = -2
 		gap_open = 5
 		gap_extend = 2
 
-	For protein sequences, set ::aa:: to True and provide a scoring matrix.
+	For protein sequences, set ::aa:: to True and optionally provide a scoring matrix.
 	::matrix:: can be one of two things:
-		1) the name of a build-in matrix (current options are 'blosum62' and 'pam250')
+		1) the name of a built-in matrix (current options are 'blosum62' and 'pam250')
 		2) a 2D dict containing match scores for each residue pair (either aa or nt)
 	'''
 	if aa and not matrix:
@@ -398,6 +398,10 @@ class SSWAlignment(BaseAlignment):
 		self.aligned_target = self._alignment.aligned_target_sequence
 		self.alignment_midline = self._alignment_midline()
 		self.score = self._alignment.optimal_alignment_score
+		self.query_begin = self._alignment.query_begin
+		self.query_end = self._alignment.query_end
+		self.target_begin = self._alignment.target_begin
+		self.target_end = self._alignment.target_end_optimal
 
 	def _align(self):
 		aligner = StripedSmithWaterman(self.query.sequence,
