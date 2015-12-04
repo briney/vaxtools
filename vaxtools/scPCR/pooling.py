@@ -148,7 +148,7 @@ class Plate(object):
 		return types[sample_type]
 
 
-def parse_pooled_plates(run_order_file, plates=None, return_parents_only=True):
+def parse_run_order(run_order_file, plates=None, return_parents_only=True):
 	"""
 	Parses a Cellario Run Order to determine which 96-well template plates were
 	pooled into a single 384-well PCR plate.
@@ -175,12 +175,14 @@ def parse_pooled_plates(run_order_file, plates=None, return_parents_only=True):
 	prev_line = ''
 	with open(run_order_file) as f:
 		for line in f:
+			# we don't need the file header
 			if not header:
 				while line[:10] != 'SAMPLEOPER':
 					line = f.next()
 				if line[:10] == 'SAMPLEOPER':
 					header = True
 					line = f.next()
+			# WAIT lines are truncated, we can skip
 			if 'WAIT' in line:
 				continue
 			l = Line(line)
@@ -190,8 +192,12 @@ def parse_pooled_plates(run_order_file, plates=None, return_parents_only=True):
 					_plates.append(Plate(lines))
 					lines = []
 			lines.append(l)
+		# assign the last batch of lines to a plate
 		if lines:
 			_plates.append(Plate(lines))
+
+	# we don't care about the tip boxes, which are handled by the Run Order
+	# file as if they were plates
 	pcr_plates = [p for p in _plates if p.plate_type == 'pcr']
 	parents = {p.sample_id: p for p in pcr_plates if p.is_parent}
 	children = [p for p in pcr_plates if not p.is_parent]
