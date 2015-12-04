@@ -224,7 +224,7 @@ def get_collections(db, collection, prefix=None):
 	return sorted(collections)
 
 
-def get_sequences(collection, chain, score_cutoff):
+def get_sequences(db, collection, chain, score_cutoff):
 	# score_cutoff = args.score_cutoff_heavy if chain == 'heavy' else args.score_cutoff_light
 	seqs = db[collection].find({'chain': chain, 'prod': 'yes', 'v_gene.score': {'$gte': score_cutoff}},
 							   {'seq_id': 1, 'raw_input': 1, 'raw_query': 1, 'vdj_nt': 1})
@@ -434,7 +434,7 @@ def parse_cluster_sizes(cluster_handle):
 	return lengths
 
 
-def get_cluster_seq(cluster, seq_db, plate, well, cluster, temp_dir, raw_sequence_dir):
+def get_cluster_seq(cluster, seq_db, plate, well, temp_dir, raw_sequence_dir):
 	if raw_sequence_dir:
 		seqs = get_all_cluster_seqs(cluster, seq_db)
 		ofile = os.path.join(raw_sequence_dir, '{}_{}.fasta'.format(plate, well))
@@ -554,7 +554,7 @@ def parse_plate_map(platemap_file, wells):
 	with open(platemap_file) as f:
 		for line in f:
 			well_names.append(line.strip().split())
-	if all([len(w) == 1 for w in well_names]):
+	if all([len(w) <= 1 for w in well_names]):
 		well_names = [(w, n[0]) for w, n in zip(wells, well_names) if n]
 	for wname in well_names:
 		if len(wname) == 1:
@@ -691,7 +691,8 @@ def main(args):
 			print('\n\nQuerying for {} chain sequences'.format(chain))
 			logging.info('{} CHAIN'.format(chain.upper()))
 			score_cutoff = args.score_cutoff_heavy if chain == 'heavy' else args.score_cutoff_light
-			sequences = get_sequences(collection,
+			sequences = get_sequences(db,
+									  collection,
 									  chain,
 									  score_cutoff)
 			print('Retrieved {} sequences.\n'.format(len(sequences)))

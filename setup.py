@@ -16,6 +16,7 @@ config = {
 						 'nwalign',
 						 'pandas',
 						 'pymongo',
+						 'scikit-bio',
 						 'seaborn'],
 	'packages': ['vaxtools'],
 	# 'scripts': ['bin/vaxtools'],

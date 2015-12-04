@@ -223,16 +223,17 @@ def run(**kwargs):
 
 
 def main(args):
-	experiment = get_experiment(args)
-	wb = load_workbook(args.input)
-	ws = wb[wb.get_sheet_names()[0]]
-	plate_blocks = get_plate_blocks(ws, args)
-	plural = '' if len(plate_blocks) <= 2 else 's'
-	print('\nFound {} plate{} in the input file'.format(len(plate_blocks) - 1, plural))
-	print('Experiment name: {}\n'.format(experiment))
-	plates = parse_plates(plate_blocks[1:], args)
-	write_output(plates, experiment, args)
-	print('')
+	for f in list_files(args):
+		experiment = get_experiment(f, args)
+		wb = load_workbook(f)
+		ws = wb[wb.get_sheet_names()[0]]
+		plate_blocks = get_plate_blocks(ws, args)
+		plural = '' if len(plate_blocks) <= 2 else 's'
+		print('\nFound {} plate{} in the input file'.format(len(plate_blocks) - 1, plural))
+		print('Experiment name: {}\n'.format(experiment))
+		plates = parse_plates(plate_blocks[1:], args)
+		write_output(plates, experiment, args)
+		print('')
 
 
 if __name__ == '__main__':
