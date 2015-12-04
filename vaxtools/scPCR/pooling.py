@@ -83,6 +83,15 @@ class Plate(object):
 		self.subplate_barcodes = []
 		self.plate_type = self._get_plate_type()
 
+	def __repr__(self):
+		string = '\n' + self.barcode
+		string += '\n{}\n'.format('-' * len(self.barcode))
+		subplates = sorted(self.quadrants.items(), key=lambda x: x[1], reverse=True)
+		for bc, loc in subplates:
+			string += '{}: {}\n'.format(loc, bc)
+		return string
+
+
 	@property
 	def is_parent(self):
 		return self._is_parent
