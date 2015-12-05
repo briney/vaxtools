@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# filename: excel_platemap_parser.py
+# filename: platemap.py
 
 #
 # Copyright (c) 2015 Bryan Briney

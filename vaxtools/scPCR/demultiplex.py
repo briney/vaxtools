@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# filename: scpcr_demultiplexing.py
+# filename: demultiplex.py
 
 
 #
@@ -51,8 +51,9 @@ from Bio.Align import AlignInfo
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-from vaxtools.utils import pixel
-from vaxtools.utils.alignment import mafft
+from vaxtools.utils import pixel, log
+
+from abtools.utils.alignment import mafft
 
 
 def parse_args():
@@ -147,14 +148,6 @@ def parse_args():
 						help="Calculate the consensus sequence as the representative sequence \
 						for each passed cluster. \
 						Default is to calculate the centroid, not the consensus.")
-	parser.add_argument('--standalone', default=True, action='store_false',
-						help="Toggle whether demultiplexing is being run in standalone mode or via API. \
-						Default when using command-line arguments is True (meaning standalone mode). \
-						This helps set logging appropriately.")
-	# parser.add_argument('--all-raw-sequences', default=False, action='store_true',
-	# 					help="If set, all sequences from each well will be saved. \
-	# 					Default is to save raw sequences only for the cluster used to calculate \
-	# 					centroid or consensus sequences.")
 	parser.add_argument('--debug', dest='debug', action='store_true', default=False,
 						help="If set, will run in debug mode.")
 	return parser.parse_args()
@@ -167,10 +160,10 @@ class Args(object):
 		index_file=None, plate_map=None, index_position='start', index_reverse_complement=False, index_length=0,
 		score_cutoff_heavy=200, score_cutoff_light=100, cdhit_threshold=0.96,
 		minimum_well_size='relative', minimum_max_well_size=250, minimum_cluster_fraction='largest',
-		minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=False, standalone=False, debug=False):
+		minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=False, debug=False):
 		super(Args, self).__init__()
 		if not all([output, temp_dir, db]):
-			print("You must supply an output directory, a temp directory and the name of a MongoDB database.")
+			logger.critical("You must supply an output directory, a temp directory and the name of a MongoDB database.")
 			sys.exit(1)
 		self.output = output
 		self.temp_dir = temp_dir
@@ -196,7 +189,6 @@ class Args(object):
 		self.minimum_well_size_denom = minimum_well_size_denom
 		self.cluster_cutoff_gradient = cluster_cutoff_gradient
 		self.consensus = consensus
-		self.standalone = False
 		self.debug = debug
 
 
@@ -225,7 +217,6 @@ def get_collections(db, collection, prefix=None):
 
 
 def get_sequences(db, collection, chain, score_cutoff):
-	# score_cutoff = args.score_cutoff_heavy if chain == 'heavy' else args.score_cutoff_light
 	seqs = db[collection].find({'chain': chain, 'prod': 'yes', 'v_gene.score': {'$gte': score_cutoff}},
 							   {'seq_id': 1, 'raw_input': 1, 'raw_query': 1, 'vdj_nt': 1})
 	return [s for s in seqs]
@@ -272,9 +263,8 @@ def remove_sqlite_db():
 
 def cdhit_clustering(seqs, bin_id, plate_name, temp_dir, num_plate_seqs,
 	minimum_well_size, minimum_well_size_denom, minimum_cluster_fraction,
-	raw_sequence_dir, alignment_pixel_dir):
-	print('clustering...')
-	# legit = False
+	raw_sequence_dir, alignment_pixel_dir, consensus):
+	logger.info('clustering...')
 	seq_db = build_seq_db(seqs)
 	infile = make_cdhit_input(seqs)
 	outfile = os.path.join(temp_dir, 'clust')
@@ -292,31 +282,25 @@ def cdhit_clustering(seqs, bin_id, plate_name, temp_dir, num_plate_seqs,
 												   minimum_cluster_fraction,
 												   temp_dir,
 												   raw_sequence_dir,
-												   alignment_pixel_dir)
+												   alignment_pixel_dir,
+												   consensus)
 	os.unlink(infile.name)
 	os.unlink(os.path.join(temp_dir, 'log'))
 	os.unlink(outfile)
 	os.unlink(outfile + '.clstr')
 	remove_sqlite_db()
 	if legit:
-		print('PASS')
-		logging.info('{}: PASSED, {} total sequences, {} in largest cluster'.format(
-			bin_id, total_count, size))
+		logger.info('PASSED')
 		return seq
-	print('FAIL')
-	logging.info('{}: FAILED, {} total sequences, {} in largest cluster'.format(
-			bin_id, total_count, size))
+	logger.info('FAILED')
 	return None
 
 
 def check_cluster_size(clust_size, num_well_seqs, num_plate_seqs,
 	minimum_well_size, minimum_well_size_denom, minimum_cluster_fraction):
-	# if args.cluster_cutoff_gradient:
-	# 	return (cluster_gradient(clust_size, num_well_seqs))
 	if minimum_well_size == 'relative':
 		rel_size = int(num_plate_seqs / float(minimum_well_size_denom))
-		print('Minimum well size: {}'.format(rel_size))
-		logging.info('Minimum well size: {}'.format(rel_size))
+		logger.info('Minimum well size: {}'.format(rel_size))
 		if num_well_seqs >= rel_size:
 			return(check_cluster_fraction(clust_size,
 										  num_well_seqs,
@@ -327,30 +311,17 @@ def check_cluster_size(clust_size, num_well_seqs, num_plate_seqs,
 									  num_well_seqs,
 									  minimum_well_size,
 									  minimum_cluster_fraction))
-	print('Minimum cluster fraction: {}'.format(minimum_cluster_fraction))
-	logging.info('Minimum cluster fraction: {}'.format(minimum_cluster_fraction))
+	logger.info('Minimum cluster fraction: {}'.format(minimum_cluster_fraction))
 	return False
 
 
 def check_cluster_fraction(clust_size, num_well_seqs,
 	minimum_well_size, minimum_cluster_fraction):
-	print('Minimum cluster fraction: {}'.format(minimum_cluster_fraction))
-	logging.info('Minimum cluster fraction: {}'.format(minimum_cluster_fraction))
 	if minimum_cluster_fraction == 'largest':
 		return True
 	if 1. * clust_size / num_well_seqs >= float(minimum_well_size):
 		return True
 	return False
-
-
-# def cluster_gradient(size, total):
-# 	if size >= 25 and 1. * size / len(seqs) >= 0.8:
-# 		return True
-# 	if size >= 100 and 1. * size / len(seqs) >= 0.6:
-# 		return True
-# 	if size >= 250 and 1. * size / len(seqs) >= 0.5:
-# 		return True
-# 	return False
 
 
 def make_cdhit_input(seqs):
@@ -384,36 +355,32 @@ def parse_centroids(centroid_handle, sizes=None):
 
 def parse_clusters(cluster_handle, seq_db, well, plate, num_plate_seqs,
 	minimum_well_size, minimum_well_size_denom, minimum_cluster_fraction,
-	temp_dir, raw_sequence_dir, alignment_pixel_dir):
-	sys.stdout.flush()
+	temp_dir, raw_sequence_dir, alignment_pixel_dir, consensus):
 	clusters = [c.split('\n') for c in cluster_handle.read().split('\n>')]
-	sys.stdout.flush()
-	start = time.time()
-	# cluster_lengths = []
-	# for cluster in clusters:
-	# 	length = len(cluster) - 1
-	# 	# cluster_id = get_cluster_id(cluster)
-	# 	cluster_seq_id, cluster_seq = get_cluster_seq(cluster, seq_db)
-	# 	cluster_lengths.append((length, (cluster_seq_id, cluster_seq)))
 	cluster_lengths = [(len(c) - 1, c) for c in clusters]
 	cluster_lengths.sort(key=lambda x: x[0], reverse=True)
 	total_seqs = sum([l[0] for l in cluster_lengths])
 	biggest_cluster_size, biggest_cluster = cluster_lengths[0]
-	legit = check_cluster_size(biggest_cluster_size, total_seqs, num_plate_seqs)
-	sum_string = 'Total number of sequences: {}\nLargest cluster: {}'.format(total_seqs, cluster_lengths[0][0])
-	print(sum_string)
-	logging.info(sum_string)
+	legit = check_cluster_size(biggest_cluster_size,
+							   total_seqs,
+							   num_plate_seqs,
+							   minimum_well_size,
+							   minimum_well_size_denom,
+							   minimum_cluster_fraction)
+	logger.info('Total number of sequences: {}'.format(total_seqs))
+	logger.info('Largest cluster: {}'.format(cluster_lengths[0][0]))
 	if legit:
 		cluster_seq_id, cluster_seq = get_cluster_seq(biggest_cluster,
 													  seq_db,
 													  plate,
 													  well,
 													  temp_dir,
-													  raw_sequence_dir)
+													  raw_sequence_dir,
+													  consensus)
 	else:
 		cluster_seq = None
 	if alignment_pixel_dir:
-		print('making alignment pixel...')
+		logger.info('making alignment pixel...')
 		ffile = os.path.join(alignment_pixel_dir, '{}_{}.png'.format(plate, well))
 		try:
 			pixel.make_pixel(get_all_cluster_seqs(biggest_cluster, seq_db),
@@ -421,7 +388,7 @@ def parse_clusters(cluster_handle, seq_db, well, plate, num_plate_seqs,
 							temp_dir,
 							consentroid=cluster_seq)
 		except:
-			logging.info('PIXEL EXCEPTION: {}'.format(traceback.format_exc()))
+			logger.info('PIXEL EXCEPTION: {}'.format(traceback.format_exc()))
 			pass
 	return cluster_seq, biggest_cluster_size, total_seqs, legit
 
@@ -434,7 +401,7 @@ def parse_cluster_sizes(cluster_handle):
 	return lengths
 
 
-def get_cluster_seq(cluster, seq_db, plate, well, temp_dir, raw_sequence_dir):
+def get_cluster_seq(cluster, seq_db, plate, well, temp_dir, raw_sequence_dir, consensus):
 	if raw_sequence_dir:
 		seqs = get_all_cluster_seqs(cluster, seq_db)
 		ofile = os.path.join(raw_sequence_dir, '{}_{}.fasta'.format(plate, well))
@@ -450,7 +417,7 @@ def get_cluster_seq(cluster, seq_db, plate, well, temp_dir, raw_sequence_dir):
 
 
 def get_cluster_centroid(cluster, seq_db):
-	print('identifying centroid...')
+	logger.info('identifying centroid...')
 	centroid_id = None
 	for c in cluster[1:]:
 		if c:
@@ -467,7 +434,7 @@ def get_cluster_centroid(cluster, seq_db):
 
 
 def get_cluster_consensus(cluster, seq_db, temp_dir):
-	print('calculating consensus...')
+	logger.info('calculating consensus...')
 	cluster_seqs = get_all_cluster_seqs(cluster, seq_db)
 	return calculate_consensus(cluster_seqs, temp_dir)
 
@@ -475,8 +442,7 @@ def get_cluster_consensus(cluster, seq_db, temp_dir):
 def calculate_consensus(cluster_seqs, temp_dir):
 	if len(cluster_seqs) == 1:
 		return (cluster_seqs[0])
-	fasta_string = '.\n'.join(['>{}\n{}'.format(c[0], c[1]) for c in cluster_seqs])
-	aln = mafft(fasta_string)
+	aln = mafft(cluster_seqs)
 	summary_align = AlignInfo.SummaryInfo(aln)
 	consensus = summary_align.gap_consensus(threshold=0.51, ambiguous='n')
 	consensus_id = uuid.uuid4()
@@ -526,17 +492,17 @@ def parse_indexes(index_file, index_length):
 		rows = [c for c in string.ascii_uppercase[:8]]
 		columns = [str(c) if len(str(c)) == 2 else '0{}'.format(c) for c in range(1, 13)]
 	else:
-		print('Index file must contain either 96 or 384 index sequences.')
+		logger.critical('Index file must contain either 96 or 384 index sequences.')
 		sys.exit(1)
 	# perform a couple of sanity checks on the index sequences
 	index_lengths = list(set([len(i) for i in index_seqs]))
 	if len(index_lengths) > 1 and not index_length:
-		print('Indexes must all be the same length, or --index-length must be provided.')
+		logger.critical('Indexes must all be the same length, or --index-length must be provided.')
 		sys.exit(1)
 	if not index_length:
 		index_length = index_lengths[0]
 	if min(index_lengths) < index_length:
-		print('All indexes must be at least as long as --index-length.')
+		logger.critical('All indexes must be at least as long as --index-length.')
 		sys.exit(1)
 	# build a dictionary of well locations and index sequences
 	wells = []
@@ -572,9 +538,11 @@ def reverse_complement(seq):
 
 def bin_by_index(sequences, indexes, index_length, index_position, rev_comp):
 	bins = {w: [] for w in indexes.values()}
+	if not index_length:
+		index_length = min(list(set([len(i) for i in indexes.keys()])))
 	pos = index_length if index_position == 'start' else -1 * index_length
 	for seq in sequences:
-		if args.index_position == 'start':
+		if index_position == 'start':
 			index = seq['raw_query'][:pos]
 		else:
 			index = seq['raw_query'][pos:]
@@ -592,46 +560,51 @@ def bin_by_index(sequences, indexes, index_length, index_position, rev_comp):
 
 
 def setup_logging(args):
-	if args.standalone:
-		logfile = args.log if args.log else os.path.join(args.output, '{}.log'.format(args.db))
-		if args.debug:
-			logging.basicConfig(filename=logfile,
-								filemode='w',
-								format='[%(levelname)s] %(asctime)s %(message)s',
-								level=logging.DEBUG)
-		else:
-			logging.basicConfig(filename=logfile,
-								filemode='w',
-								format='[%(levelname)s] %(asctime)s %(message)s',
-								level=logging.INFO)
-		logging.info('LOG LOCATION: {}'.format(logfile))
+	logfile = args.log if args.log else os.path.join(args.output, '{}.log'.format(args.db))
+	if args.debug:
+		logger = logging.basicConfig(filename=logfile,
+							filemode='w',
+							format='[%(levelname)s] %(asctime)s %(message)s',
+							level=logging.DEBUG)
 	else:
-		logging.info('\n\nscPCR Demultiplexing\n\n')
-	log_options(args)
+		logger = logging.basicConfig(filename=logfile,
+							filemode='w',
+							format='[%(levelname)s] %(asctime)s %(message)s',
+							level=logging.INFO)
+
+	# set up a streamHandler so that all logged messages also print to console
+	formatter = logging.Formatter("%(message)s")
+	ch = logging.StreamHandler()
+	ch.setLevel(logging.INFO)
+	ch.setFormatter(formatter)
+	logger.addHandler(ch)
+	logger.info('\n')
+	logger.info('LOG LOCATION: {}'.format(logfile))
+	return logger
 
 
 def log_options(args):
-	logging.info('OUTPUT DIRECTORY: {}'.format(args.output))
-	logging.info('DATABASE: {}'.format(args.db))
-	logging.info('INDEX FILE: {}'.format(args.index_file))
-	logging.info('PLATE-MAP FILE: {}'.format(args.plate_map))
-	logging.info('HEAVY CHAIN SCORE THRESHOLD: {}'.format(args.score_cutoff_heavy))
-	logging.info('LIGHT CHAIN SCORE THRESHOLD: {}'.format(args.score_cutoff_light))
-	logging.info('USER-SUPPLIED INDEX LENGTH: {}'.format(
+	logger.info('OUTPUT DIRECTORY: {}'.format(args.output))
+	logger.info('DATABASE: {}'.format(args.db))
+	logger.info('INDEX FILE: {}'.format(args.index_file))
+	logger.info('PLATE-MAP FILE: {}'.format(args.plate_map))
+	logger.info('HEAVY CHAIN SCORE THRESHOLD: {}'.format(args.score_cutoff_heavy))
+	logger.info('LIGHT CHAIN SCORE THRESHOLD: {}'.format(args.score_cutoff_light))
+	logger.info('USER-SUPPLIED INDEX LENGTH: {}'.format(
 		args.index_length if args.index_length > 0 else 'None'))
-	logging.info('INDEX POSITION: {}'.format(args.index_position))
-	logging.info('INDEX REVERSE COMPLEMENT: {}'.format(args.index_reverse_complement))
-	logging.info('CD-HIT THRESHOLD: {}'.format(args.cdhit_threshold))
-	logging.info('MINIMUM CLUSTER SIZE: {}'.format(args.minimum_well_size))
-	logging.info('MINIMUM CLUSTER SIZE DENOMINATOR: {}'.format(args.minimum_well_size_denom))
-	logging.info('MINIMUM CLUSTER FRACTION: {}'.format(args.minimum_cluster_fraction))
-	logging.info('CENTROID OR CONSENSUS: {}'.format('consensus' if args.consensus else 'centroid'))
+	logger.info('INDEX POSITION: {}'.format(args.index_position))
+	logger.info('INDEX REVERSE COMPLEMENT: {}'.format(args.index_reverse_complement))
+	logger.info('CD-HIT THRESHOLD: {}'.format(args.cdhit_threshold))
+	logger.info('MINIMUM CLUSTER SIZE: {}'.format(args.minimum_well_size))
+	logger.info('MINIMUM CLUSTER SIZE DENOMINATOR: {}'.format(args.minimum_well_size_denom))
+	logger.info('MINIMUM CLUSTER FRACTION: {}'.format(args.minimum_cluster_fraction))
+	logger.info('CENTROID OR CONSENSUS: {}'.format('consensus' if args.consensus else 'centroid'))
 
 
 def log_output(bins, seqs):
 	num_bins = len([b for b in bins.keys() if len(bins[b]) >= args.minimum_well_size])
 	num_seqs = len(seqs)
-	logging.info('RESULTS: Of {} wells with at least {} reads, {} passed filter'.format(
+	logger.info('RESULTS: Of {} wells with at least {} reads, {} passed filter'.format(
 		num_bins, args.minimum_well_size, num_seqs))
 
 
@@ -652,51 +625,48 @@ def write_output(seqs, outname):
 
 
 def print_plate_info(name, collection):
-	name_string = '     Processing {} (collection {})     '.format(name, collection)
-	print('\n\n')
-	print('=' * len(name_string))
-	print(name_string)
-	print('=' * len(name_string))
-	logging.info('')
-	logging.info('COLLECTION: {}'.format(collection))
-	logging.info('PLATE NAME: {}'.format(name))
+	logger.info('')
+	logger.info('')
+	logger.info('COLLECTION: {}'.format(collection))
+	logger.info('PLATE NAME: {}'.format(name))
 
 
 def print_bin_info(b):
 	bin_string = '  {}  '.format(b)
-	print('\n')
-	print(bin_string)
-	print('-' * len(bin_string))
+	logger.info('')
+	logger.info(bin_string)
+	logger.info('-' * len(bin_string))
 
 
 def run(**kwargs):
 	args = Args(**kwargs)
+	global logger
+	logger = logging.getLogger('demultiplex')
 	main(args)
 
 
 def main(args):
-	setup_logging(args)
+	log_options(args)
 	db = get_database(args)
 	indexes = parse_indexes(args.index_file, args.index_length)
 	plate_map = parse_plate_map(args.plate_map, sorted(indexes.values()))
 	for collection in get_collections(db, args.collection):
 		if collection not in plate_map:
-			print('\n\n{} was not found in the supplied plate map file.'.format(
+			logger.info('\n\n{} was not found in the supplied plate map file.'.format(
 				collection))
 			continue
 		plate_name = plate_map[collection]
 		print_plate_info(plate_name, collection)
 		plate_seqs = []
 		for chain in ['heavy', 'kappa', 'lambda']:
-			print('\n\nQuerying for {} chain sequences'.format(chain))
-			logging.info('{} CHAIN'.format(chain.upper()))
+			logger.info('')
+			logger.info('Querying for {} chain sequences'.format(chain))
 			score_cutoff = args.score_cutoff_heavy if chain == 'heavy' else args.score_cutoff_light
 			sequences = get_sequences(db,
 									  collection,
 									  chain,
 									  score_cutoff)
-			print('Retrieved {} sequences.\n'.format(len(sequences)))
-			logging.info('QUERY RESULTS: {} {} chain sequences met the quality threshold'.format(
+			logger.info('QUERY RESULTS: {} {} chain sequences met the quality threshold'.format(
 				len(sequences), chain.lower()))
 			bins = bin_by_index(sequences,
 								indexes,
@@ -705,7 +675,7 @@ def main(args):
 								args.index_reverse_complement)
 			min_well_size = args.minimum_max_well_size if args.minimum_well_size == 'relative' else args.minimum_well_size
 			if max([len(b) for b in bins.values()]) < int(min_well_size):
-				logging.info('The biggest well had fewer than {} sequences, so the plate was not processed'.format(min_well_size))
+				logger.info('The biggest well had fewer than {} sequences, so the plate was not processed'.format(min_well_size))
 				continue
 			for b in sorted(bins.keys()):
 				if len(bins[b]) < 25:
@@ -718,14 +688,20 @@ def main(args):
 											   len(sequences),
 											   args.minimum_well_size,
 											   args.minimum_well_size_denom,
-											   args.minimum_cluster_fraction)
+											   args.minimum_cluster_fraction,
+											   args.raw_sequence_dir,
+											   args.alignment_pixel_dir,
+											   args.consensus)
 				if consentroid:
 					plate_seqs.append((b, consentroid))
 			log_output(bins, plate_seqs)
 		write_output(plate_seqs, plate_name)
-	print('\n')
+	logger.info('')
 
 
 if __name__ == '__main__':
+	print('')
 	args = parse_args()
+	logfile = args.log if args.log else os.path.join(args.output, '{}.log'.format(args.db))
+	logger = log.setup_logging(logfile, debug=args.debug)
 	main(args)

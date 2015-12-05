@@ -33,7 +33,7 @@ from Bio.Align import AlignInfo
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-from vaxtools.utils.alignment import mafft
+from abtools.utils.alignment import mafft
 
 
 def make_pixel(seqs, ffile, temp_dir='/tmp', consentroid=None):
@@ -74,9 +74,8 @@ def make_pixel(seqs, ffile, temp_dir='/tmp', consentroid=None):
 def _pixel_msa(consentroid, seqs, temp_dir):
 	fasta = ''
 	if consentroid is not None:
-		fasta += '>consentroid\n{}\n'.format(consentroid)
-	fasta += '\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in seqs])
-	aln = mafft(fasta)
+		seqs = [('consentroid', consentroid)] + seqs
+	aln = mafft(seqs)
 	aln_seqs = []
 	for record in aln:
 		aln_seqs.append((record.id, str(record.seq)))
