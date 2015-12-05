@@ -51,8 +51,9 @@ from Bio.Align import AlignInfo
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-from vaxtools.utils import pixel, log
+from vaxtools.utils import pixel
 
+from abtools.utils import log
 from abtools.utils.alignment import mafft
 
 
@@ -641,7 +642,7 @@ def print_bin_info(b):
 def run(**kwargs):
 	args = Args(**kwargs)
 	global logger
-	logger = logging.getLogger('demultiplex')
+	logger = log.get_logger('demultiplex')
 	main(args)
 
 
@@ -703,5 +704,6 @@ if __name__ == '__main__':
 	print('')
 	args = parse_args()
 	logfile = args.log if args.log else os.path.join(args.output, '{}.log'.format(args.db))
-	logger = log.setup_logging(logfile, debug=args.debug)
+	log.setup_logging(logfile, debug=args.debug)
+	logger = log.get_logger('demultiplex')
 	main(args)
