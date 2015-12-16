@@ -53,7 +53,7 @@ from matplotlib.colors import ListedColormap
 
 from vaxtools.utils import pixel
 
-from abtools.utils import log
+from abtools.utils import log, mongodb
 from abtools.utils.alignment import mafft
 
 
@@ -145,10 +145,10 @@ def parse_args():
 						help="Allows for a gradiated cluster cutoff, with the percent of high-homology \
 						sequences within each well varying based on the number of sequences in the well. \
 						Default is False.")
-	parser.add_argument('--consensus', default=False, action='store_true',
+	parser.add_argument('--consensus', default=True, action='store_false',
 						help="Calculate the consensus sequence as the representative sequence \
 						for each passed cluster. \
-						Default is to calculate the centroid, not the consensus.")
+						Default is to calculate the consensus.")
 	parser.add_argument('--debug', dest='debug', action='store_true', default=False,
 						help="If set, will run in debug mode.")
 	return parser.parse_args()
@@ -161,7 +161,7 @@ class Args(object):
 		index_file=None, plate_map=None, index_position='start', index_reverse_complement=False, index_length=0,
 		score_cutoff_heavy=200, score_cutoff_light=100, cdhit_threshold=0.96,
 		minimum_well_size='relative', minimum_max_well_size=250, minimum_cluster_fraction='largest',
-		minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=False, debug=False):
+		minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=True, debug=False):
 		super(Args, self).__init__()
 		if not all([output, temp_dir, db]):
 			logger.critical("You must supply an output directory, a temp directory and the name of a MongoDB database.")
@@ -198,23 +198,23 @@ class Args(object):
 ###############
 
 
-def get_database(args):
-	if args.user and args.password:
-		password = urllib.quote_plus(password)
-		uri = 'mongodb://{}:{}@{}'.format(args.user, password, args.ip)
-		conn = MongoClient(uri)
-	else:
-		conn = MongoClient(args.ip, 27017)
-	return conn[args.db]
+# def get_database(args):
+# 	if args.user and args.password:
+# 		password = urllib.quote_plus(password)
+# 		uri = 'mongodb://{}:{}@{}'.format(args.user, password, args.ip)
+# 		conn = MongoClient(uri)
+# 	else:
+# 		conn = MongoClient(args.ip, 27017)
+# 	return conn[args.db]
 
 
-def get_collections(db, collection, prefix=None):
-	if collection:
-		return [collection, ]
-	collections = db.collection_names(include_system_collections=False)
-	if prefix:
-		collections = [c for c in collections if c.startswith(prefix)]
-	return sorted(collections)
+# def get_collections(db, collection, prefix=None):
+# 	if collection:
+# 		return [collection, ]
+# 	collections = db.collection_names(include_system_collections=False)
+# 	if prefix:
+# 		collections = [c for c in collections if c.startswith(prefix)]
+# 	return sorted(collections)
 
 
 def get_sequences(db, collection, chain, score_cutoff):
@@ -648,10 +648,11 @@ def run(**kwargs):
 
 def main(args):
 	log_options(args)
-	db = get_database(args)
+	db = mongo.get_db(args.db, ip=args.ip, port=args.port,
+					  user=args.user, password=args.password)
 	indexes = parse_indexes(args.index_file, args.index_length)
 	plate_map = parse_plate_map(args.plate_map, sorted(indexes.values()))
-	for collection in get_collections(db, args.collection):
+	for collection in mongo.get_collections(db, args.collection):
 		if collection not in plate_map:
 			logger.info('\n\n{} was not found in the supplied plate map file.'.format(
 				collection))
