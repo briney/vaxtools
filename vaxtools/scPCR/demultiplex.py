@@ -156,7 +156,7 @@ def parse_args():
 
 class Args(object):
 	"""docstring for Args"""
-	def __init__(self, output=None, temp_dir=None, raw_sequence_dir=None, alignment_pixel_dir=None, log=None,
+	def __init__(self, output=None, temp=None, raw_sequence_dir=None, alignment_pixel_dir=None, log=None,
 		db=None, collection=None, ip='localhost', user=None, password=None,
 		index_file=None, plate_map=None, index_position='start', index_reverse_complement=False, index_length=0,
 		score_cutoff_heavy=200, score_cutoff_light=100, cdhit_threshold=0.96,
@@ -167,7 +167,7 @@ class Args(object):
 			logger.critical("You must supply an output directory, a temp directory and the name of a MongoDB database.")
 			sys.exit(1)
 		self.output = output
-		self.temp_dir = temp_dir
+		self.temp_dir = temp
 		self.raw_sequence_dir = raw_sequence_dir
 		self.alignment_pixel_dir = alignment_pixel_dir
 		self.log = log

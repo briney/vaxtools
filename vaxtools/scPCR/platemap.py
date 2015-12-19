@@ -97,13 +97,11 @@ class Args(object):
 		super(Args, self).__init__()
 
 		if not all([input, output, plate_delim_prefix, plate_delim_well_nmber, sample_row_number, sample_well_number]):
-			reqstring = '--input\n--output\n'
-			reqstring += '--plate-delim-prefix\n--plate-delim-well-number\n'
-			reqstring += '--sample-row-number\n--sample-well-number'
-			print('\nERROR: The following options are all required:\n')
-			print(reqstring)
-			print('')
-			sys.exit(1)
+			err_string = 'The following options are all required:\n'
+			err_string += '--input\n--output\n'
+			err_string += '--plate-delim-prefix\n--plate-delim-well-number\n'
+			err_string += '--sample-row-number\n--sample-well-number'
+			raise RuntimeError(err_string)
 
 		self.input = input
 		self.output = output
@@ -112,9 +110,9 @@ class Args(object):
 		self.plate_numbering_start = int(plate_numbering_start)
 		self.plate_delim_prefix = plate_delim_prefix
 		self.plate_delim_well_number = int(plate_delim_well_number)
-		self.plate_name_row_number = int(plate_name_row_number) if plate_name_row_number else None
-		self.sample_row_number = int(sample_row_number) if sample_row_number else None
-		self.sample_well_number = int(sample_well_number) if sample_well_number else None
+		self.plate_name_row_number = int(plate_name_row_number) if plate_name_row_number is not None else None
+		self.sample_row_number = int(sample_row_number) if sample_row_number is not None else None
+		self.sample_well_number = int(sample_well_number) if sample_well_number is not None else None
 		self.sample_well_offset = int(sample_well_offset)
 		self.max_sample_number = int(max_sample_number)
 
