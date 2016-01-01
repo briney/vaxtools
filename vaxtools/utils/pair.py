@@ -36,7 +36,8 @@ class PairHL(object):
 		self._heavy = None
 		self._light = None
 		self._name = name
-		self._subject = None
+		self._sample = None
+		self._group = None
 		self._is_pair = None
 		self._vrc01_like = None
 		self._lineage = None
@@ -88,12 +89,73 @@ class PairHL(object):
 		self._name = name
 
 	@property
-	def subject(self):
-		return self._subject
+	def sample(self):
+		if self._sample is None:
+			if self.heavy is not None and 'sample' in self.heavy.keys():
+				self._sample = self.heavy['sample']
+			elif self.light is not None and 'sample' in self.light.keys():
+				self._sample = self.light['sample']
+		return self._sample
 
-	@subject.setter
-	def subject(self, subject):
-		self._subject = subject
+	@sample.setter
+	def sample(self, sample):
+		self._sample = sample
+
+	@property
+	def group(self):
+		if self._group is None:
+			if self.heavy is not None and 'group' in self.heavy.keys():
+				self._group = self.heavy['group']
+			elif self.light is not None and 'group' in self.light.keys():
+				self._group = self.light['group']
+		return self._group
+
+	@group.setter
+	def group(self, group):
+		self._group = group
+
+
+def get_pairs(db, collection, sample=None, group=None, name='seq_id',
+	delim=None, delim_occurance=1, pairs_only=False):
+	'''
+	Gets seuqences and assigns them to the appropriate mAb pair, based on the sequence name.
+
+	Inputs:
+
+	::db:: is a pymongo database connection object
+	::collection:: is the collection name, as a string
+	If ::sample:: is provided, only sequences with a 'sample' field matching ::sample:: will
+		be included. ::sample:: can be either a single sample (as a string) or an iterable
+		(list or tuple) of sample strings.
+	If ::group:: is provided, only sequences with a 'group' field matching ::group:: will
+		be included. ::group:: can be either a single group (as a string) or an iterable
+		(list or tuple) of group strings.
+	::name:: is the dict key of the field to be used to group the sequences into pairs.
+		Default is 'seq_id'
+	::delim:: is an optional delimiter used to truncate the contents of the ::name:: field.
+		Default is None, which results in no name truncation.
+	::delim_occurance:: is the occurance of the delimiter at which to trim. Trimming is performed
+		as delim.join(name.split(delim)[:delim_occurance]), so setting delim_occurance to -1 will
+		trucate after the last occurance of delim. Default is 1.
+	::pairs_only:: setting to True results in only truly paired sequences (pair.is_pair == True)
+		will be returned. Default is False.
+
+	Returns a list of PairHL objects, one for each mAb pair.
+	'''
+	match = {}
+	if sample is not None:
+		if type(sample) in (list, tuple):
+			match['sample'] = {'$in': sample}
+		elif type(sample) in (str, unicode):
+			match['sample'] = sample
+	if group is not None:
+		if type(group) in (list, tuple):
+			match['group'] = {'$in': group}
+		elif type(group) in (str, unicode):
+			match['group'] = group
+	seqs = list(db[collection].find(match))
+	return assign_pairs(seqs, name=name, delim=delim,
+		delim_occurance=delim_occurance, pairs_only=pairs_only)
 
 
 def assign_pairs(seqs, name='seq_id', delim=None, delim_occurance=1, pairs_only=False):

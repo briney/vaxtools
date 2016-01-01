@@ -31,6 +31,8 @@ import string
 
 from openpyxl import load_workbook
 
+from abtools.utils import log
+
 from vaxtools.utils.containers import Well, Sample, Plate
 
 
@@ -43,6 +45,8 @@ def parse_args():
 						help="The output directory, into which the map files will be deposited. \
 						If the directory does not exist, it will be created. \
 						Required.")
+	parser.add_argument('-l', '--log', dest='logfile', default=None,
+						help="The log file. If not provided, defaults to <output>/platemap.log.")
 	parser.add_argument('-e', '--experiment', dest='experiment', default=None,
 						help="Name of the experiment. \
 						If not supplied, the input filename (after removing the .xlsx extension) \
@@ -155,7 +159,7 @@ def parse_plates(raw_plates, args):
 			if len(num) < 2:
 				num = '0' + num
 			plate_name = '{}{}'.format(args.plate_prefix, num)
-		print('Processing plate: {}'.format(plate_name))
+		logger.info('Processing plate: {}'.format(plate_name))
 		samples = parse_samples(rp)
 		wells = parse_plate_grid(rp)
 		plates.append(Plate(plate_name, wells, samples))
@@ -217,6 +221,8 @@ def write_output(plates, experiment, args):
 
 def run(**kwargs):
 	args = Args(**kwargs)
+	global logger
+	logger = log.get_logger()
 	main(args)
 
 
@@ -227,13 +233,17 @@ def main(args):
 		ws = wb[wb.get_sheet_names()[0]]
 		plate_blocks = get_plate_blocks(ws, args)
 		plural = '' if len(plate_blocks) <= 2 else 's'
-		print('\nFound {} plate{} in the input file'.format(len(plate_blocks) - 1, plural))
-		print('Experiment name: {}\n'.format(experiment))
+		logger.info('\nFound {} plate{} in the input file'.format(len(plate_blocks) - 1, plural))
+		logger.info('Experiment name: {}\n'.format(experiment))
 		plates = parse_plates(plate_blocks[1:], args)
 		write_output(plates, experiment, args)
-		print('')
+		logger.info('')
 
 
 if __name__ == '__main__':
 	args = parse_args()
+	if args.log is None:
+		args.log = os.path.join(args.output, 'platemap.log')
+	log.setup_logging(args.log)
+	logger = log.get_logger()
 	main(args)

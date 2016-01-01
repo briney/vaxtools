@@ -19,7 +19,7 @@ config = {
 						 'scikit-bio',
 						 'seaborn'],
 	'packages': ['vaxtools'],
-	# 'scripts': ['bin/vaxtools'],
+	'scripts': ['bin/scpcr_demultiplex'],
 	'name': 'vaxtools',
 	'include_package_data': True
 }
