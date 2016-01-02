@@ -1,0 +1,223 @@
+#!/usr/bin/env python
+# filename: abstar_import_upload.py
+
+
+#
+# Copyright (c) 2015 Bryan Briney
+# License: The MIT license (http://opensource.org/licenses/MIT)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+# and associated documentation files (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge, publish, distribute,
+# sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or
+# substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+# BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+
+
+import argparse
+import os
+
+import abstar
+
+from abstar.utils import log
+from abtools.utils.mongodb import mongoimport
+from abtools.utils.s3 import compress_and_upload
+
+from vaxtools.utils.pipeline import make_dir
+
+
+def parse_arguments():
+	parser = argparse.ArgumentParser("Performs germline assignment and other relevant annotation on antibody sequence data from NGS platforms.")
+	parser.add_argument('--project_dir', dest='project_dir', required=True,
+						"The project directory, where files for the entire project will be stored. \
+						By default, this entire directory will be compressed and uploaded to S3. \
+						Will be created if it does not already exist. \
+						Required.")
+	# parser.add_argument('--abstar_dir', dest='abstar_dir', default=None,
+	# 					help="The AbStar data directory, where files will be downloaded, \
+	# 					temp files will be stored, and output files will be written. \
+	# 					If not provided, AbStar data will be stored in <project_dir>/abstar/. \
+	# 					Will be created if it does not already exist. \
+	# 					Not necessary if '--abstar-input' is provided.")
+	parser.add_argument('--abstar-input', dest='abstar_input', default=None,
+						help="The AbStar input file or directory, to be split and processed in parallel. \
+						If a directory is given, all files in the directory will be iteratively processed. \
+						Will be created if it does not already exist. \
+						Default is <project_dir>/abstar/input.")
+	parser.add_argument('--abstar-output', dest='abstar_output', default=None,
+						help="The AbStar output directory, into which the JSON-formatted output files will be deposited. \
+						Will be created if it does not already exist. \
+						Default is <project_dir>/abstar/output/")
+	parser.add_argument('-l', '--log', dest='log', default=None,
+						help="The log file, to which log info will be written. \
+						Default is <project_dir>/abstar_import_upload.log")
+	parser.add_argument('-t', '--temp', dest='temp', default=None,
+						help="The directory in which temp files will be stored. \
+						Will be created if it does not already exist. \
+						Default is <project_dir>/temp/")
+
+	# AbStar-specific options
+	parser.add_argument('--abstar_chunksize', dest='abstar_chunksize', default=250, type=int,
+						help="Approximate number of sequences in each distributed job. \
+						Defaults to 250. Don't change unless you know what you're doing.")
+	parser.add_argument('--abstar_output_type', dest="abstar_output_type", choices=['json', 'imgt', 'hadoop'], default='json',
+						help="Select the AbStar output type. Options are 'json', 'imgt' and 'impala'. \
+						IMGT output mimics the Summary table produced by IMGT High-V/Quest, \
+						to maintain some level of compatibility with existing IMGT-based pipelines. \
+						JSON output is much more detailed. \
+						Hadoop output is columnar and easily converted to binary HDFS-friendly formats \
+						(Parquet, Avro) for use in Impala or other Hadoop query engines (Pig, Hive, Spark). \
+						Defaults to JSON output.")
+	parser.add_argument('--merge', dest="merge", action='store_true', default=False,
+						help="Use if the AbStar input files are paired-end FASTQs \
+						(either gzip compressed or uncompressed) from Illumina platforms. \
+						Prior to running the germline assignment pipeline, paired reads will be merged with PANDAseq. \
+						Default is False, meaning reads will not be merged.")
+	parser.add_argument('--pandaseq_algo', dest="pandaseq_algo", default='simple_bayesian',
+						choices=['simple_bayesian', 'ea_util', 'flash', 'pear', 'rdp_mle', 'stitch', 'uparse'],
+						help="Define merging algorithm to be used by PANDAseq.\
+						Options are 'simple_bayesian', 'ea_util', 'flash', 'pear', 'rdp_mle', 'stitch', or 'uparse'.\
+						Default is 'simple_bayesian', which is the default PANDAseq algorithm.")
+	parser.add_argument('--next_seq', dest="next_seq", action='store_true', default=False,
+						help="Use if the run was performed on a NextSeq sequencer.")
+	parser.add_argument('--uaid', dest="uaid", type=int, default=0,
+						help="Length of the unique antibody identifiers (UAIDs) used when preparing samples, if used. \
+						Default is unbarcoded (UAID length of 0).")
+	parser.add_argument('--isotype', dest="isotype", action='store_false', default=True,
+						help="If set, the isotype will not be determined for heavy chains.\
+						If not set, isotyping sequences for the appropriate species will be used.")
+	parser.add_argument('--basespace', dest="basespace", default=False, action='store_true',
+						help="Use if AbStar input files should be downloaded directly from BaseSpace. \
+						Files will be downloaded into the input directory. \
+						If set, --merge is also set to True")
+	parser.add_argument('--cluster', dest="cluster", default=False, action='store_true',
+						help="Use if performing AbStar computation on a Celery cluster. \
+						If set, input files will be split into many subfiles and passed \
+						to a Celery queue. If not set, input files will still be split, but \
+						will be distributed to local processors using multiprocessing.")
+	parser.add_argument('--species', dest='species', default='human',
+						choices=['human', 'macaque', 'mouse', 'rabbit', 'b12mouse', 'vrc01mouse', '9114mouse'])
+
+	# Mongoimport-specific options
+	parser.add_argument('--mongo_ip', dest='mongo_ip', default='localhost',
+						help="IP address for the MongoDB server.  Defaults to 'localhost'.")
+	parser.add_argument('--mongo_port', dest='mongo_port', default=27017, type=int,
+						help="IP address for the MongoDB server.  Defaults to 27017.")
+	parser.add_argument('--mongo_user', dest='mongo_user', default=None,
+						help="Username for the MongoDB server. Not used if not provided.")
+	parser.add_argument('--mongo_password', dest='mongo_password', default=None,
+						help="Password for the MongoDB server. Not used if not provided.")
+	parser.add_argument('--mongo_db', dest='mongo_db', required=True,
+						help="The MongoDB database for import.")
+	parser.add_argument('--delim1', dest='delim1', default=None,
+						help="The first character delimiter used to split the filename to get the collection name. \
+						If splitting with a single delimiter, use this option to provide the delimiter. Required.")
+	parser.add_argument('--delim2', dest='delim2', default=None,
+						help="If splitting with two different delimiters, use this option to provide the second delimiter. \
+						Required if splitting with two delimiters.")
+	parser.add_argument('--split1', dest='split1_pos', default=1, type=int,
+						help="Builds the collection name by truncating at the <split> occurance of the <delim> character. \
+						If splitting with multiple delimiters, this option is used to specifiy the occurance of the first delimiter. \
+						Default is 1.")
+	parser.add_argument('--split2', dest='split2_pos', default=1, type=int,
+						help="If splitting with multiple delimiters, this option is used to specify the occurance of the \
+						second delimiter at which to split. \
+						Required if splitting with two different delimiters.")
+	parser.add_argument('--split-only', dest='split_only', default=False, action='store_true',
+						help="Instead of truncating the filename to get the collection name, takes only the split for the collection. \
+						Default is False.")
+
+	# S3-specific options
+	parser.add_argument('--s3-path', dest='s3_path', required=True,
+						help="The S3 folder into which to upload the data. Should not include the filename (just the folder). \
+						Required.")
+	parser.add_argument('--compression-method', dest='compression_method', default='gz',
+						help="Compression method to use prior to upload. Options are 'gz', 'bz', or 'none'. \
+						Default is 'gz'.")
+	parser.add_argument('--compressed-file', dest='compressed_file', default=None,
+						help="Path for the compressed project folder. \
+						Default is name-of-project-dir.tar.gz, placed in the parent directory of the project folder. \
+						Typically not needed, unless the compressed project file will be too large for the \
+						parent directory of the project folder.")
+
+	parser.add_argument('-D', '--debug', dest="debug", action='count', default=0,
+						help="If set, logs additional debug information.")
+	args = parser.parse_args()
+	return args
+
+
+
+# ----------------------
+#      DIRECTORIES
+# ----------------------
+
+def make_directories(args):
+	args.temp = get_temp_dir(args)
+	args.abstar_input = get_abstar_input_dir(args)
+	args.abstar_output = get_abstar_output_dir(args)
+	args.compressed_file = get_compressed_file(args)
+	compressed_dir = os.path.dirname(os.path.normpath(args.compressed_file))
+	to_make = [args.project_dir, args.abstar_input, args.abstar_output,
+			   args.temp, compressed_dir]
+	for d in to_make:
+		make_dir(d)
+
+
+def get_temp_dir(args):
+	if args.temp is not None:
+		return args.temp
+	return os.path.join(project_dir, 'temp')
+
+
+def get_abstar_input_dir(args):
+	if args.abstar_input is not None:
+		return args.abstar_input
+	return os.path.join(args.project_dir, 'abstar/input/')
+
+
+def get_abstar_ouput_dir(args):
+	if args.abstar_output is not None:
+		return args.abstar_output
+	return os.path.join(args.project_dir, 'abstar/output/')
+
+
+def get_compressed_file(args):
+	if args.compressed_file is not None:
+		return args.compressed_file
+	compressed_file_name = os.path.basename(args.project_dir) + '.tar.gz'
+	compressed_file_dir = os.path.dirname(os.path.normpath(args.project_dir))
+	return(os.path.join(compressed_file_dir, compressed_file_name))
+
+
+
+
+def main(args):
+	make_directories(args)
+	jsons = abstar.run(input=args.abstar_input, output=args.abstar_output, temp=args.temp,
+					   chunksize=args.abstar_chunksize, output_type=args.abstar_output_type,
+					   merge=args.merge, pandaseq_algo=args.pandaseq_algo, next_seq=args.next_seq,
+					   uaid=args.uaid, isotype=args.isotype, basespace=args.basespace,
+					   cluster=args.cluster, species=args.species, debug=args.debug)
+	mongoimport(jsons, args.mongo_db, ip=args.mongo_ip, port=args.mongo_port,
+				user=args.mongo_user, password=args.mongo_password, delim=args.delim,
+				delim1=args.delim1, delim2=args.delim2, delim_occurance=args.delim_occurance,
+				delim1_occurance=args.delim1_occurance, delim2_occurance=args.delim2_occurance)
+	compress_and_upload(args.project_dir, args.compressed_file, args.s3_path,
+						method=args.compression_method)
+
+
+if __name__ == '__main__':
+	args = parse_args()
+	logfile = args.log if args.log is not None else os.path.join(args.project_dir, 'abstar_import_upload.log')
+	log.setup_logging(logfile)
+	logger = log.get_logger('pipeline')
+	main(args)

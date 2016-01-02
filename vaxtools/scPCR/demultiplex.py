@@ -738,8 +738,7 @@ def main(args, logfile=None):
 				min_well_size = int(args.minimum_well_size)
 			min_max_well_size = max(min_well_size, args.minimum_max_well_size)
 			if max([len(b) for b in bins.values()]) < int(min_max_well_size):
-				logger.info('The biggest well had fewer than {} sequences, \
-					so the plate was not processed'.format(min_max_well_size))
+				logger.info('The biggest well had fewer than {} sequences, so the plate was not processed'.format(min_max_well_size))
 				continue
 			for b in sorted(bins.keys()):
 				if len(bins[b]) < 25:

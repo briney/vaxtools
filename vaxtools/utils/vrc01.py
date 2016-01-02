@@ -23,6 +23,7 @@
 #
 
 
+from collections import Counter
 import os
 
 import numpy as np
@@ -33,9 +34,14 @@ from abtools.utils.alignment import muscle
 from abtools.utils.pipeline import make_dir
 
 from vaxtools.utils.mutations import single_nucleotide_aa_mutations, multiple_nucleotide_aa_mutations, silent_mutations, nonsilent_mutations
+from vaxtools.utils.outputs import schief_csv_output
 
 
 def vrc01_summary_output(pairs, output_dir):
+
+	import warnings
+	warnings.filterwarnings("ignore")
+
 	make_dir(output_dir)
 
 	# 1. the fraction of Abs in each animal that are (a) VH1-2 (b) 5-aa LCDR3 (c) both VH1-2 and 5-aa LCDR3 (d) not a or b (e) not c
@@ -303,17 +309,61 @@ def vrc01_summary_output_part1(pairs, output_dir):
 
 		group = all_pairs[0].group
 		all_stats['{}_{}'.format(group, sample)] = stats
-	df = pd.DataFrame(all_stats)
-	stats_csv = df.to_csv()
+	df = pd.DataFrame(all_stats).fillna(0)
+	stats_csv = df.T.to_csv()
 	open(os.path.join(output_dir, 'summary_output_part1.csv'), 'w').write(stats_csv)
 
 
 def vrc01_summary_output_part2(pairs, output_dir):
 
 	# 5. the light chain V genes used in cases a-e, along with the LCDR1 length for those V genes
-	# TODO
+	vl_gene_frequency_dir = os.path.join(output_dir, 'VL_gene_frequencies')
+	make_dir(vl_gene_frequency_dir)
+	samples = list(set([p.sample for p in pairs]))
 
-	pass
+	just_pairs = [p for p in pairs if p.is_pair]
+	all_lights = [p for p in pairs if p.light is not None]
+
+	vh12_lpairs = [p.light for p in just_pairs if p.heavy['v_gene']['gene'] == 'IGHV1-2']
+	lcdr3_lseqs = [p.light for p in all_lights if p.light['cdr3_len'] == 5]
+	lcdr3_lpairs = [p.light for p in just_pairs if p.light['cdr3_len'] == 5]
+	vrc01like_lpairs = [p.light for p in just_pairs if p.light['cdr3_len'] == 5 and p.heavy['v_gene']['gene'] == 'IGHV1-2']
+	strict_nonvrc01like_lpairs = [p.light for p in just_pairs if all([p.light['cdr3_len'] != 5, p.heavy['v_gene']['gene'] != 'IGHV1-2'])]
+	nonvrc01like_lpairs = [p.light for p in just_pairs if not all([p.light['cdr3_len'] == 5, p.heavy['v_gene']['gene'] == 'IGHV1-2'])]
+
+	sequences = {'VH1-2 paired light chain VL gene distributions': vh12_lpairs,
+				 '5AA LCDR3 light chain VL gene distributions': lcdr3_lseqs,
+				 '5AA LCDR3 paired light chain VL gene distributions': lcdr3_lpairs,
+				 'VRC01-like paired light chain VL gene distributions': vrc01like_lpairs,
+				 'strict nonVRC01-like paired light chain VL gene distributions': strict_nonvrc01like_lpairs,
+				 'nonVRC01-like paired light chain VL gene distributions': nonvrc01like_lpairs}
+
+	for sname in sequences.keys():
+		data = {}
+		seqs = sequences[sname]
+		vl_lengths = {}
+		for s in seqs:
+			if s['v_gene']['gene'] not in vl_lengths:
+				vl_lengths[s['v_gene']['gene']] = len(s['cdr1_germ_aa'].replace('-', ''))
+		for sample in samples:
+			sample_seqs = [s for s in seqs if s['sample'] == sample]
+			if not sample_seqs:
+				continue
+			group = sample_seqs[0]['group']
+			vl_genes = [s['v_gene']['gene'] for s in sample_seqs if s['chain'] in ['kappa', 'lambda']]
+			vl_counts = Counter(vl_genes)
+			data['{}_{}'.format(group, sample)] = vl_counts
+
+		df = pd.DataFrame(data)
+		df = df / df.sum()
+		df = df.fillna(0)
+
+		lengths = pd.Series([vl_lengths[v] for v in df.index], index=df.index)
+		df['LCDR1 length'] = lengths
+
+		outfile = os.path.join(vl_gene_frequency_dir, sname.replace(' ', '_') + '.csv')
+		open(outfile, 'w').write(df.to_csv(sep=','))
+
 
 
 def vrc01_summary_output_part3(pairs, output_dir):
@@ -356,12 +406,65 @@ def vrc01_summary_output_part3(pairs, output_dir):
 def vrc01_summary_output_part4(pairs, output_dir):
 
 	# 7. the frequency distribution of insertion lengths in Abs in a-e
-
 	# 8. ditto for deletion lengths
 
-	# TODO
+	indel_dir = os.path.join(output_dir, 'indels')
+	make_dir(indel_dir)
+	samples = list(set([p.sample for p in pairs]))
 
-	pass
+	just_pairs = [p for p in pairs if p.is_pair]
+	all_heavys = [p for p in pairs if p.heavy is not None]
+	all_lights = [p for p in pairs if p.light is not None]
+
+	vh12_hseqs = [p.heavy for p in all_heavys if p.heavy['v_gene']['gene'] == 'IGHV1-2']
+	vh12_hpairs = [p.heavy for p in just_pairs if p.heavy['v_gene']['gene'] == 'IGHV1-2']
+	vh12_lpairs = [p.light for p in just_pairs if p.heavy['v_gene']['gene'] == 'IGHV1-2']
+	lcdr3_lseqs = [p.light for p in all_lights if p.light['cdr3_len'] == 5]
+	lcdr3_hpairs = [p.heavy for p in just_pairs if p.heavy['cdr3_len'] == 5]
+	lcdr3_lpairs = [p.light for p in just_pairs if p.light['cdr3_len'] == 5]
+	vrc01like_hpairs = [p.heavy for p in just_pairs if p.light['cdr3_len'] == 5 and p.heavy['v_gene']['gene'] == 'IGHV1-2']
+	vrc01like_lpairs = [p.light for p in just_pairs if p.light['cdr3_len'] == 5 and p.heavy['v_gene']['gene'] == 'IGHV1-2']
+	strict_nonvrc01like_hpairs = [p.heavy for p in just_pairs if all([p.light['cdr3_len'] != 5, p.heavy['v_gene']['gene'] != 'IGHV1-2'])]
+	strict_nonvrc01like_lpairs = [p.light for p in just_pairs if all([p.light['cdr3_len'] != 5, p.heavy['v_gene']['gene'] != 'IGHV1-2'])]
+	nonvrc01like_hpairs = [p.heavy for p in just_pairs if not all([p.light['cdr3_len'] == 5, p.heavy['v_gene']['gene'] == 'IGHV1-2'])]
+	nonvrc01like_lpairs = [p.light for p in just_pairs if not all([p.light['cdr3_len'] == 5, p.heavy['v_gene']['gene'] == 'IGHV1-2'])]
+
+	sequences = {'VH1-2 heavy chain indel distributions': vh12_hseqs,
+				 'VH1-2 paired heavy chain indel distributions': vh12_hpairs,
+				 'VH1-2 paired light chain indel distributions': vh12_lpairs,
+				 '5AA LCDR3 light chain indel distributions': lcdr3_lseqs,
+				 '5AA LCDR3 paired heavy chain indel distributions': lcdr3_hpairs,
+				 '5AA LCDR3 paired light chain indel distributions': lcdr3_lpairs,
+				 'VRC01-like paired heavy chain indel distributions': vrc01like_hpairs,
+				 'VRC01-like paired light chain indel distributions': vrc01like_lpairs,
+				 'strict nonVRC01-like paired heavy chain indel distributions': strict_nonvrc01like_hpairs,
+				 'strict nonVRC01-like paired light chain indel distributions': strict_nonvrc01like_lpairs,
+				 'nonVRC01-like paired heavy chain indel distributions': nonvrc01like_hpairs,
+				 'nonVRC01-like paired light chain indel distributions': nonvrc01like_lpairs}
+
+	for sname in sequences.keys():
+		data = {}
+		seqs = sequences[sname]
+		for sample in samples:
+			sample_seqs = [s for s in seqs if s['sample'] == sample]
+			if not sample_seqs:
+				continue
+			group = sample_seqs[0]['group']
+			ins_counts = np.bincount([indel['len'] for s in sample_seqs if 'v_ins' in s for indel in s['v_ins']])
+			ins_lengths = range(len(ins_counts))
+			ins_dist = {l: c for l, c in zip(ins_lengths, ins_counts) if c > 0}
+			del_counts = np.bincount([indel['len'] for s in sample_seqs if 'v_del' in s for indel in s['v_del']])
+			del_lengths = range(len(del_counts))
+			del_dist = {l: c for l, c in zip(del_lengths, del_counts) if c > 0}
+
+			data['{}_{}_insertions'.format(group, sample)] = ins_dist
+			data['{}_{}_deletions'.format(group, sample)] = del_dist
+
+		df = pd.DataFrame(data)
+		df = df / df.sum()
+		df = df.fillna(0)
+		outfile = os.path.join(indel_dir, sname.replace(' ', '_') + '.csv')
+		open(outfile, 'w').write(df.to_csv(sep=','))
 
 
 
@@ -369,9 +472,8 @@ def vrc01_summary_output_part5(pairs, output_dir):
 
 	# 10. The standard Abstar output that he usually gives me for all H-L pairs if available or just H or L individual when pairs not yet available.
 
-	# TODO
-
-	pass
+	output_file = os.path.join(output_dir, 'abstar_output.csv')
+	schief_csv_output(pairs, output_file)
 
 
 
