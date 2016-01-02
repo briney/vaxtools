@@ -48,6 +48,10 @@ import pandas as pd
 from Bio import AlignIO
 from Bio.Align import AlignInfo
 
+import matplotlib
+# Force matplotlib to not use any Xwindows backend.
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
