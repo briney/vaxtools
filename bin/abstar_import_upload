@@ -117,17 +117,23 @@ def parse_args():
 						help="Password for the MongoDB server. Not used if not provided.")
 	parser.add_argument('--mongo_db', dest='mongo_db', required=True,
 						help="The MongoDB database for import.")
+	parser.add_argument('--delim', dest='delim', default=None,
+						help="The delimiter used to split the filename to get the collection name. \
+						If splitting with a single delimiter, use this option to provide the delimiter.")
 	parser.add_argument('--delim1', dest='delim1', default=None,
-						help="The first character delimiter used to split the filename to get the collection name. \
-						If splitting with a single delimiter, use this option to provide the delimiter. Required.")
+						help="The first character delimiter used to split the filename to get the collection name \
+						if splitting with two different delimiters. --delim2 is also required.")
 	parser.add_argument('--delim2', dest='delim2', default=None,
 						help="If splitting with two different delimiters, use this option to provide the second delimiter. \
 						Required if splitting with two delimiters.")
-	parser.add_argument('--split1', dest='split1_pos', default=1, type=int,
+	parser.add_argument('--delim-occurance', dest='delim_occurance', default=1, type=int,
+						help="Builds the collection name by truncating at the <split> occurance of the <delim> character. \
+						Use if splitting with a single delimiter. Default is 1.")
+	parser.add_argument('--delim1-occurance', dest='delim1_occurance', default=1, type=int,
 						help="Builds the collection name by truncating at the <split> occurance of the <delim> character. \
 						If splitting with multiple delimiters, this option is used to specifiy the occurance of the first delimiter. \
 						Default is 1.")
-	parser.add_argument('--split2', dest='split2_pos', default=1, type=int,
+	parser.add_argument('--delim2-occurance', dest='delim2_occurance', default=1, type=int,
 						help="If splitting with multiple delimiters, this option is used to specify the occurance of the \
 						second delimiter at which to split. \
 						Required if splitting with two different delimiters.")
