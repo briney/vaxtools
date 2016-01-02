@@ -30,15 +30,14 @@ import abstar
 
 from abstar.utils import log
 from abtools.utils.mongodb import mongoimport
+from abtools.utils.pipeline import make_dir
 from abtools.utils.s3 import compress_and_upload
 
-from vaxtools.utils.pipeline import make_dir
 
-
-def parse_arguments():
+def parse_args():
 	parser = argparse.ArgumentParser("Performs germline assignment and other relevant annotation on antibody sequence data from NGS platforms.")
 	parser.add_argument('--project_dir', dest='project_dir', required=True,
-						"The project directory, where files for the entire project will be stored. \
+						help="The project directory, where files for the entire project will be stored. \
 						By default, this entire directory will be compressed and uploaded to S3. \
 						Will be created if it does not already exist. \
 						Required.")
