@@ -180,7 +180,7 @@ def make_directories(args):
 def get_temp_dir(args):
 	if args.temp is not None:
 		return args.temp
-	return os.path.join(project_dir, 'temp')
+	return os.path.join(args.project_dir, 'temp')
 
 
 def get_abstar_input_dir(args):
