@@ -30,7 +30,7 @@ import abstar
 
 from abstar.utils import log
 from abtools.utils.mongodb import mongoimport
-from abtools.utils.pipeline import make_dir
+from abtools.utils.pipeline import initialize, make_dir
 from abtools.utils.s3 import compress_and_upload
 
 
@@ -41,12 +41,6 @@ def parse_args():
 						By default, this entire directory will be compressed and uploaded to S3. \
 						Will be created if it does not already exist. \
 						Required.")
-	# parser.add_argument('--abstar_dir', dest='abstar_dir', default=None,
-	# 					help="The AbStar data directory, where files will be downloaded, \
-	# 					temp files will be stored, and output files will be written. \
-	# 					If not provided, AbStar data will be stored in <project_dir>/abstar/. \
-	# 					Will be created if it does not already exist. \
-	# 					Not necessary if '--abstar-input' is provided.")
 	parser.add_argument('--abstar-input', dest='abstar_input', default=None,
 						help="The AbStar input file or directory, to be split and processed in parallel. \
 						If a directory is given, all files in the directory will be iteratively processed. \
@@ -160,7 +154,6 @@ def parse_args():
 	return args
 
 
-
 # ----------------------
 #      DIRECTORIES
 # ----------------------
@@ -174,6 +167,8 @@ def make_directories(args):
 	to_make = [args.project_dir, args.abstar_input, args.abstar_output,
 			   args.temp, compressed_dir]
 	for d in to_make:
+		if d in ('', '/'):
+			continue
 		make_dir(d)
 
 
@@ -189,7 +184,7 @@ def get_abstar_input_dir(args):
 	return os.path.join(args.project_dir, 'abstar/input/')
 
 
-def get_abstar_ouput_dir(args):
+def get_abstar_output_dir(args):
 	if args.abstar_output is not None:
 		return args.abstar_output
 	return os.path.join(args.project_dir, 'abstar/output/')
@@ -198,12 +193,14 @@ def get_abstar_ouput_dir(args):
 def get_compressed_file(args):
 	if args.compressed_file is not None:
 		return args.compressed_file
-	compressed_file_name = os.path.basename(args.project_dir) + '.tar.gz'
+	compressed_file_name = os.path.basename(os.path.normpath(args.project_dir)) + '.tar.gz'
 	compressed_file_dir = os.path.dirname(os.path.normpath(args.project_dir))
 	return(os.path.join(compressed_file_dir, compressed_file_name))
 
 
-
+# ----------------------
+#         MAIN
+# ----------------------
 
 def main(args):
 	make_directories(args)
@@ -223,6 +220,6 @@ def main(args):
 if __name__ == '__main__':
 	args = parse_args()
 	logfile = args.log if args.log is not None else os.path.join(args.project_dir, 'abstar_import_upload.log')
-	log.setup_logging(logfile)
-	logger = log.get_logger('pipeline')
+	logger = initialize(logfile, project_dir=args.project_dir)
 	main(args)
+	logger.info('')
