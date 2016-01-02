@@ -398,7 +398,7 @@ def parse_clusters(cluster_handle, seq_db, well, plate, num_plate_seqs,
 		cluster_seq = None
 	if all([alignment_pixel_dir is not None, cluster_seq is not None]):
 		logger.info('making alignment pixel...')
-		ffile = os.path.join(alignment_pixel_dir, '{}-{}.pdf'.format(plate, well))
+		ffile = os.path.join(alignment_pixel_dir, '{}-{}.png'.format(plate, well))
 		try:
 			pixel.make_pixel(get_all_cluster_seqs(biggest_cluster, seq_db),
 							ffile,

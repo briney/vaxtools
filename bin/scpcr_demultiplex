@@ -25,6 +25,9 @@
 
 from __future__ import print_function, unicode_literals
 
+import matplotlib as mpl
+mpl.use('Agg')
+
 import os
 import warnings
 
