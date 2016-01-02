@@ -36,7 +36,7 @@ from abtools.utils.s3 import compress_and_upload
 
 def parse_args():
 	parser = argparse.ArgumentParser("Performs germline assignment and other relevant annotation on antibody sequence data from NGS platforms.")
-	parser.add_argument('--project_dir', dest='project_dir', required=True,
+	parser.add_argument('--project-dir', dest='project_dir', required=True,
 						help="The project directory, where files for the entire project will be stored. \
 						By default, this entire directory will be compressed and uploaded to S3. \
 						Will be created if it does not already exist. \
@@ -65,10 +65,10 @@ def parse_args():
 						Default is <project_dir>/temp/")
 
 	# AbStar-specific options
-	parser.add_argument('--abstar_chunksize', dest='abstar_chunksize', default=250, type=int,
+	parser.add_argument('--abstar-chunksize', dest='abstar_chunksize', default=250, type=int,
 						help="Approximate number of sequences in each distributed job. \
 						Defaults to 250. Don't change unless you know what you're doing.")
-	parser.add_argument('--abstar_output_type', dest="abstar_output_type", choices=['json', 'imgt', 'hadoop'], default='json',
+	parser.add_argument('--abstar-output-type', dest="abstar_output_type", choices=['json', 'imgt', 'hadoop'], default='json',
 						help="Select the AbStar output type. Options are 'json', 'imgt' and 'impala'. \
 						IMGT output mimics the Summary table produced by IMGT High-V/Quest, \
 						to maintain some level of compatibility with existing IMGT-based pipelines. \
@@ -81,12 +81,12 @@ def parse_args():
 						(either gzip compressed or uncompressed) from Illumina platforms. \
 						Prior to running the germline assignment pipeline, paired reads will be merged with PANDAseq. \
 						Default is False, meaning reads will not be merged.")
-	parser.add_argument('--pandaseq_algo', dest="pandaseq_algo", default='simple_bayesian',
+	parser.add_argument('--pandaseq-algo', dest="pandaseq_algo", default='simple_bayesian',
 						choices=['simple_bayesian', 'ea_util', 'flash', 'pear', 'rdp_mle', 'stitch', 'uparse'],
 						help="Define merging algorithm to be used by PANDAseq.\
 						Options are 'simple_bayesian', 'ea_util', 'flash', 'pear', 'rdp_mle', 'stitch', or 'uparse'.\
 						Default is 'simple_bayesian', which is the default PANDAseq algorithm.")
-	parser.add_argument('--next_seq', dest="next_seq", action='store_true', default=False,
+	parser.add_argument('--next-seq', dest="next_seq", action='store_true', default=False,
 						help="Use if the run was performed on a NextSeq sequencer.")
 	parser.add_argument('--uaid', dest="uaid", type=int, default=0,
 						help="Length of the unique antibody identifiers (UAIDs) used when preparing samples, if used. \
@@ -107,15 +107,15 @@ def parse_args():
 						choices=['human', 'macaque', 'mouse', 'rabbit', 'b12mouse', 'vrc01mouse', '9114mouse'])
 
 	# Mongoimport-specific options
-	parser.add_argument('--mongo_ip', dest='mongo_ip', default='localhost',
+	parser.add_argument('--mongo-ip', dest='mongo_ip', default='localhost',
 						help="IP address for the MongoDB server.  Defaults to 'localhost'.")
-	parser.add_argument('--mongo_port', dest='mongo_port', default=27017, type=int,
+	parser.add_argument('--mongo-port', dest='mongo_port', default=27017, type=int,
 						help="IP address for the MongoDB server.  Defaults to 27017.")
-	parser.add_argument('--mongo_user', dest='mongo_user', default=None,
+	parser.add_argument('--mongo-user', dest='mongo_user', default=None,
 						help="Username for the MongoDB server. Not used if not provided.")
-	parser.add_argument('--mongo_password', dest='mongo_password', default=None,
+	parser.add_argument('--mongo-password', dest='mongo_password', default=None,
 						help="Password for the MongoDB server. Not used if not provided.")
-	parser.add_argument('--mongo_db', dest='mongo_db', required=True,
+	parser.add_argument('--mongo-db', dest='mongo_db', required=True,
 						help="The MongoDB database for import.")
 	parser.add_argument('--delim', dest='delim', default=None,
 						help="The delimiter used to split the filename to get the collection name. \
