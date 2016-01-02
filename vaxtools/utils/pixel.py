@@ -35,6 +35,10 @@ from matplotlib.colors import ListedColormap
 
 from abtools.utils.alignment import mafft
 
+import matplotlib
+# Force matplotlib to not use any Xwindows backend.
+matplotlib.use('Agg')
+
 
 def make_pixel(seqs, ffile, temp_dir='/tmp', consentroid=None):
 	nuc_vals = {'-': 0,
