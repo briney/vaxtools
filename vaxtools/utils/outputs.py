@@ -35,12 +35,23 @@ def schief_csv_output(pairs, output_file, sep=','):
 	make_dir(os.path.dirname(output_file))
 	header = _get_schief_output_header(sep)
 	output = [header, ]
-	for p in pairs:
-		line = [p.name, ]
+	for p in sorted(pairs, key=lambda x: _get_name(x)):
+		name = _get_name(p)
+		line = [name, ]
 		line += _schief_output_line(p.heavy)
 		line += _schief_output_line(p.light)
 		output.append(sep.join([str(l) for l in line]))
 	open(output_file, 'w').write('\n'.join(output))
+
+
+def _get_name(p):
+	if p.heavy is not None:
+		if 'group' in p.heavy:
+			return '{}_{}'.format(p.heavy['group'], p.name)
+	if p.light is not None:
+		if 'group' in p.light:
+			return '{}_{}'.format(p.light['group'], p.name)
+	return p.name
 
 
 def _get_fr_identity(seq, res='nt'):

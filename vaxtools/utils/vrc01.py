@@ -23,11 +23,20 @@
 #
 
 
+from __future__ import print_function
+
 from collections import Counter
+from itertools import izip_longest
 import os
+import random
 
 import numpy as np
 import pandas as pd
+
+import matplotlib
+matplotlib.use('Agg')
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 from abtools.utils.sequence import Sequence
 from abtools.utils.alignment import muscle
@@ -38,52 +47,34 @@ from vaxtools.utils.outputs import schief_csv_output
 
 
 def vrc01_summary_output(pairs, output_dir):
-
 	import warnings
 	warnings.filterwarnings("ignore")
-
 	make_dir(output_dir)
 
 	# 1. the fraction of Abs in each animal that are (a) VH1-2 (b) 5-aa LCDR3 (c) both VH1-2 and 5-aa LCDR3 (d) not a or b (e) not c
-
 	# 2. the %aa mutation (mean and sdev) in V genes (separately for H and L) for Abs in the a-e cases above.
-
 	# 3. the number of VRC01-class mutations vs total number of mutations in H chain for cases a and c on a per animal basis.
 	# Let's please agree on which VRC01-class Abs we are using to define this.
 	# Please use the same list as in the Jardine, Ota, Sok Science 2015 paper: 12a12, 3BNC60, PGV04, PGV20, VRC-CH31, and VRC01.
-
 	# 4. the number of VRC01-class mutations in L chain for case b. **make this lower priority because it is difficult**
 	# This is tricky since different V genes are used, but we should try.
 	# This will be very important in boosting experiments that include the 276 glycan (which we have already done and Devin has already sorted) so let's work out the method.
-
 	# 9. the fraction of Abs in a-e that have a deletion in LCDR1, and the sizes of those deletions if any.
-
 	# 11. the % of aa mutations that are due to single vs double nt mutations. (for cases a-e)
-
 	# 12. the % of silent vs non-silent mutations in cases a-e.
-
 	vrc01_summary_output_part1(pairs, output_dir)
 
-
 	# 5. the light chain V genes used in cases a-e, along with the LCDR1 length for those V genes
-
 	vrc01_summary_output_part2(pairs, output_dir)
 
-
 	# 6. the LCDR3 sequences for cases a-e
-
 	vrc01_summary_output_part3(pairs, output_dir)
 
-
 	# 7. the frequency distribution of insertion lengths in Abs in a-e
-
 	# 8. ditto for deletion lengths
-
 	vrc01_summary_output_part4(pairs, output_dir)
 
-
 	# 10. The standard Abstar output that he usually gives me for all H-L pairs if available or just H or L individual when pairs not yet available.
-
 	vrc01_summary_output_part5(pairs, output_dir)
 
 
@@ -311,33 +302,28 @@ def vrc01_summary_output_part1(pairs, output_dir):
 		all_stats['{}_{}'.format(group, sample)] = stats
 	df = pd.DataFrame(all_stats).fillna(0)
 	stats_csv = df.T.to_csv()
-	open(os.path.join(output_dir, 'summary_output_part1.csv'), 'w').write(stats_csv)
+	open(os.path.join(output_dir, 'summary_output.csv'), 'w').write(stats_csv)
 
 
 def vrc01_summary_output_part2(pairs, output_dir):
-
 	# 5. the light chain V genes used in cases a-e, along with the LCDR1 length for those V genes
 	vl_gene_frequency_dir = os.path.join(output_dir, 'VL_gene_frequencies')
 	make_dir(vl_gene_frequency_dir)
 	samples = list(set([p.sample for p in pairs]))
-
 	just_pairs = [p for p in pairs if p.is_pair]
 	all_lights = [p for p in pairs if p.light is not None]
-
 	vh12_lpairs = [p.light for p in just_pairs if p.heavy['v_gene']['gene'] == 'IGHV1-2']
 	lcdr3_lseqs = [p.light for p in all_lights if p.light['cdr3_len'] == 5]
 	lcdr3_lpairs = [p.light for p in just_pairs if p.light['cdr3_len'] == 5]
 	vrc01like_lpairs = [p.light for p in just_pairs if p.light['cdr3_len'] == 5 and p.heavy['v_gene']['gene'] == 'IGHV1-2']
 	strict_nonvrc01like_lpairs = [p.light for p in just_pairs if all([p.light['cdr3_len'] != 5, p.heavy['v_gene']['gene'] != 'IGHV1-2'])]
 	nonvrc01like_lpairs = [p.light for p in just_pairs if not all([p.light['cdr3_len'] == 5, p.heavy['v_gene']['gene'] == 'IGHV1-2'])]
-
 	sequences = {'VH1-2 paired light chain VL gene distributions': vh12_lpairs,
 				 '5AA LCDR3 light chain VL gene distributions': lcdr3_lseqs,
 				 '5AA LCDR3 paired light chain VL gene distributions': lcdr3_lpairs,
 				 'VRC01-like paired light chain VL gene distributions': vrc01like_lpairs,
 				 'strict nonVRC01-like paired light chain VL gene distributions': strict_nonvrc01like_lpairs,
 				 'nonVRC01-like paired light chain VL gene distributions': nonvrc01like_lpairs}
-
 	for sname in sequences.keys():
 		data = {}
 		seqs = sequences[sname]
@@ -353,21 +339,16 @@ def vrc01_summary_output_part2(pairs, output_dir):
 			vl_genes = [s['v_gene']['gene'] for s in sample_seqs if s['chain'] in ['kappa', 'lambda']]
 			vl_counts = Counter(vl_genes)
 			data['{}_{}'.format(group, sample)] = vl_counts
-
 		df = pd.DataFrame(data)
 		df = df / df.sum()
 		df = df.fillna(0)
-
 		lengths = pd.Series([vl_lengths[v] for v in df.index], index=df.index)
 		df['LCDR1 length'] = lengths
-
 		outfile = os.path.join(vl_gene_frequency_dir, sname.replace(' ', '_') + '.csv')
 		open(outfile, 'w').write(df.to_csv(sep=','))
 
 
-
 def vrc01_summary_output_part3(pairs, output_dir):
-
 	# 6. the LCDR3 sequences for cases a-e
 	lcdr3_dir = os.path.join(output_dir, 'LCDR3_sequences')
 	make_dir(lcdr3_dir)
@@ -378,7 +359,6 @@ def vrc01_summary_output_part3(pairs, output_dir):
 		just_pairs = [p for p in all_pairs if p.is_pair]
 		all_heavys = [p for p in all_pairs if p.heavy is not None]
 		all_lights = [p for p in all_pairs if p.light is not None]
-
 		vh12_seqs = [p for p in all_heavys if p.heavy['v_gene']['gene'] == 'IGHV1-2']  # (a)
 		vh12_pairs = [p for p in just_pairs if p.heavy['v_gene']['gene'] == 'IGHV1-2']  # (a)
 		lcdr3_seqs = [p for p in all_lights if p.light['cdr3_len'] == 5]  # (b)
@@ -386,36 +366,29 @@ def vrc01_summary_output_part3(pairs, output_dir):
 		vrc01like_pairs = [p for p in just_pairs if p.light['cdr3_len'] == 5 and p.heavy['v_gene']['gene'] == 'IGHV1-2']  # (c)
 		strict_nonvrc01like_pairs = [p for p in just_pairs if all([p.light['cdr3_len'] != 5, p.heavy['v_gene']['gene'] != 'IGHV1-2'])]  # (d)
 		nonvrc01like_pairs = [p for p in just_pairs if not all([p.light['cdr3_len'] == 5, p.heavy['v_gene']['gene'] == 'IGHV1-2'])]  # (e)
-
 		vh12_pair_cdr3_csvs = ['{},{},{}'.format(p.sample, p.name, p.light['cdr3_aa']) for p in vh12_pairs]
 		lcdr3_seq_cdr3_csvs = ['{},{},{}'.format(p.sample, p.name, p.light['cdr3_aa']) for p in lcdr3_seqs]
 		lcdr3_pair_cdr3_csvs = ['{},{},{}'.format(p.sample, p.name, p.light['cdr3_aa']) for p in lcdr3_pairs]
 		vrc01like_pair_cdr3_csvs = ['{},{},{}'.format(p.sample, p.name, p.light['cdr3_aa']) for p in vrc01like_pairs]
 		strict_nonvrc01like_pair_cdr3_csvs = ['{},{},{}'.format(p.sample, p.name, p.light['cdr3_aa']) for p in strict_nonvrc01like_pairs]
 		nonvrc01like_pair_cdr3_csvs = ['{},{},{}'.format(p.sample, p.name, p.light['cdr3_aa']) for p in nonvrc01like_pairs]
-
-		open(os.path.join(lcdr3_dir, '{}_VH1-2_pair_LCDR3_sequences.fasta'.format(group)), 'w').write('\n'.join(vh12_pair_cdr3_csvs))
-		open(os.path.join(lcdr3_dir, '{}_5AA_LCDR3_seq_LCDR3_sequences.fasta'.format(group)), 'w').write('\n'.join(lcdr3_seq_cdr3_csvs))
-		open(os.path.join(lcdr3_dir, '{}_5AA_LCDR3_pair_LCDR3_sequences.fasta'.format(group)), 'w').write('\n'.join(lcdr3_pair_cdr3_csvs))
-		open(os.path.join(lcdr3_dir, '{}_VRC01-like_pair_LCDR3_sequences.fasta'.format(group)), 'w').write('\n'.join(vrc01like_pair_cdr3_csvs))
-		open(os.path.join(lcdr3_dir, '{}_nonVRC01-like_pair_LCDR3_sequences.fasta'.format(group)), 'w').write('\n'.join(nonvrc01like_pair_cdr3_csvs))
-		open(os.path.join(lcdr3_dir, '{}_strict_nonVRC01-like_pair_LCDR3_sequences.fasta'.format(group)), 'w').write('\n'.join(strict_nonvrc01like_pair_cdr3_csvs))
-
+		open(os.path.join(lcdr3_dir, '{}_VH1-2_pair_LCDR3_sequences.csv'.format(group)), 'w').write('\n'.join(vh12_pair_cdr3_csvs))
+		open(os.path.join(lcdr3_dir, '{}_5AA_LCDR3_seq_LCDR3_sequences.csv'.format(group)), 'w').write('\n'.join(lcdr3_seq_cdr3_csvs))
+		open(os.path.join(lcdr3_dir, '{}_5AA_LCDR3_pair_LCDR3_sequences.csv'.format(group)), 'w').write('\n'.join(lcdr3_pair_cdr3_csvs))
+		open(os.path.join(lcdr3_dir, '{}_VRC01-like_pair_LCDR3_sequences.csv'.format(group)), 'w').write('\n'.join(vrc01like_pair_cdr3_csvs))
+		open(os.path.join(lcdr3_dir, '{}_nonVRC01-like_pair_LCDR3_sequences.csv'.format(group)), 'w').write('\n'.join(nonvrc01like_pair_cdr3_csvs))
+		open(os.path.join(lcdr3_dir, '{}_strict_nonVRC01-like_pair_LCDR3_sequences.csv'.format(group)), 'w').write('\n'.join(strict_nonvrc01like_pair_cdr3_csvs))
 
 
 def vrc01_summary_output_part4(pairs, output_dir):
-
 	# 7. the frequency distribution of insertion lengths in Abs in a-e
 	# 8. ditto for deletion lengths
-
 	indel_dir = os.path.join(output_dir, 'indels')
 	make_dir(indel_dir)
 	samples = list(set([p.sample for p in pairs]))
-
 	just_pairs = [p for p in pairs if p.is_pair]
 	all_heavys = [p for p in pairs if p.heavy is not None]
 	all_lights = [p for p in pairs if p.light is not None]
-
 	vh12_hseqs = [p.heavy for p in all_heavys if p.heavy['v_gene']['gene'] == 'IGHV1-2']
 	vh12_hpairs = [p.heavy for p in just_pairs if p.heavy['v_gene']['gene'] == 'IGHV1-2']
 	vh12_lpairs = [p.light for p in just_pairs if p.heavy['v_gene']['gene'] == 'IGHV1-2']
@@ -428,7 +401,6 @@ def vrc01_summary_output_part4(pairs, output_dir):
 	strict_nonvrc01like_lpairs = [p.light for p in just_pairs if all([p.light['cdr3_len'] != 5, p.heavy['v_gene']['gene'] != 'IGHV1-2'])]
 	nonvrc01like_hpairs = [p.heavy for p in just_pairs if not all([p.light['cdr3_len'] == 5, p.heavy['v_gene']['gene'] == 'IGHV1-2'])]
 	nonvrc01like_lpairs = [p.light for p in just_pairs if not all([p.light['cdr3_len'] == 5, p.heavy['v_gene']['gene'] == 'IGHV1-2'])]
-
 	sequences = {'VH1-2 heavy chain indel distributions': vh12_hseqs,
 				 'VH1-2 paired heavy chain indel distributions': vh12_hpairs,
 				 'VH1-2 paired light chain indel distributions': vh12_lpairs,
@@ -441,7 +413,6 @@ def vrc01_summary_output_part4(pairs, output_dir):
 				 'strict nonVRC01-like paired light chain indel distributions': strict_nonvrc01like_lpairs,
 				 'nonVRC01-like paired heavy chain indel distributions': nonvrc01like_hpairs,
 				 'nonVRC01-like paired light chain indel distributions': nonvrc01like_lpairs}
-
 	for sname in sequences.keys():
 		data = {}
 		seqs = sequences[sname]
@@ -449,17 +420,18 @@ def vrc01_summary_output_part4(pairs, output_dir):
 			sample_seqs = [s for s in seqs if s['sample'] == sample]
 			if not sample_seqs:
 				continue
-			group = sample_seqs[0]['group']
+			try:
+				group = sample_seqs[0]['group']
+			except KeyError:
+				group = 'None'
 			ins_counts = np.bincount([indel['len'] for s in sample_seqs if 'v_ins' in s for indel in s['v_ins']])
 			ins_lengths = range(len(ins_counts))
 			ins_dist = {l: c for l, c in zip(ins_lengths, ins_counts) if c > 0}
 			del_counts = np.bincount([indel['len'] for s in sample_seqs if 'v_del' in s for indel in s['v_del']])
 			del_lengths = range(len(del_counts))
 			del_dist = {l: c for l, c in zip(del_lengths, del_counts) if c > 0}
-
 			data['{}_{}_insertions'.format(group, sample)] = ins_dist
 			data['{}_{}_deletions'.format(group, sample)] = del_dist
-
 		df = pd.DataFrame(data)
 		df = df / df.sum()
 		df = df.fillna(0)
@@ -467,40 +439,47 @@ def vrc01_summary_output_part4(pairs, output_dir):
 		open(outfile, 'w').write(df.to_csv(sep=','))
 
 
-
 def vrc01_summary_output_part5(pairs, output_dir):
-
 	# 10. The standard Abstar output that he usually gives me for all H-L pairs if available or just H or L individual when pairs not yet available.
-
 	output_file = os.path.join(output_dir, 'abstar_output.csv')
 	schief_csv_output(pairs, output_file)
 
 
-
-def vrc01_class_mutation_count(seqs, chain='heavy', aa=True):
-	seqs = [Sequence(s, aa=aa) for s in seqs]
+def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=True,
+							   vgene_only=True, chain='heavy', aa=True):
+	input_seqs = [Sequence(s) for s in seqs]
+	vrc01_seqs = []
 	shared = []
 	total = []
 	# get VRC01-class sequences
-	vrc01_seqs = _get_vrc01_class_sequences(chain=chain)
+	if vrc01_class:
+		vrc01_seqs += get_vrc01_class_sequences(chain=chain)
+	if minvrc01:
+		vrc01_seqs.append(get_minvrc01_sequence())
+	if min12a21:
+		vrc01_seqs.append(get_min12a21_sequence())
 	vrc01_names = [s.id for s in vrc01_seqs]
 	# get glVRC01 sequence
-	glvrc01 = _get_vrc01_germline_sequence()
+	glvrc01 = get_vrc01_germline_sequence()
 	glvrc01_name = glvrc01.id
-	vrc01_seqs.append(glvrc01)
 	# identify VRC01-class mutations
-	for s in seqs:
-		alignment_seqs = [s] + vrc01_seqs
+	for s in input_seqs:
+		alignment_seqs = [s] + vrc01_seqs + [glvrc01]
 		aln = muscle(alignment_seqs)
 		aln_seq = [seq for seq in aln if seq.id == s.id][0]
 		aln_gl = [seq for seq in aln if seq.id == glvrc01_name][0]
 		aln_vrc01s = [seq for seq in aln if seq.id in vrc01_names]
-		total.append(sum([s != g for s, g in zip(str(aln_seq.seq), str(aln_gl.seq))]))
+		if vgene_only:
+			total.append(sum([s != g for s, g in zip(str(aln_seq.seq), str(aln_gl.seq)) if g != '-']))
+		else:
+			total.append(sum([s != g for s, g in zip(str(aln_seq.seq), str(aln_gl.seq))]))
 		all_shared = {}
 		for vrc01 in aln_vrc01s:
 			_shared = []
 			for q, g, v in zip(str(aln_seq.seq), str(aln_gl.seq), str(vrc01.seq)):
-				if q == v and q != g:
+				if vgene_only and g == '-' and v == '-':
+					_shared.append(False)
+				elif q == v and q != g:
 					_shared.append(True)
 				else:
 					_shared.append(False)
@@ -513,23 +492,216 @@ def vrc01_class_mutation_count(seqs, chain='heavy', aa=True):
 	return shared, total
 
 
-def _get_vrc01_germline_sequence():
-	gl_vrc01 = ('glVRC01', 'QVQLVQSGAEVKKPGASVKVSCKASGYTFTGYYMHWVRQAPGQGLEWMGWINPNSGGTNYAQKFQGRVTMTRDTSISTAYMELSRLRSDDTAVYYCARGKNSDYNWDFQHWGQGTLVTVSS')
+def vrc01_class_mutation_positions(seqs, vrc01_class=True, minvrc01=True, min12a21=True,
+								   vgene_only=True, chain='heavy', aa=True, drop_gaps=True):
+	data = []
+	hiv_seqs = []
+	input_seqs = [Sequence(s, aa=aa) for s in seqs]
+	input_names = [s.id for s in input_seqs]
+	if vrc01_class:
+		hiv_seqs += get_vrc01_class_sequences(vgene_only=vgene_only)
+	if minvrc01:
+		hiv_seqs.append(get_minvrc01_sequence(vgene_only=vgene_only))
+	if min12a21:
+		hiv_seqs.append(get_min12a21_sequence(vgene_only=vgene_only))
+	all_hiv_names = [s.id for s in hiv_seqs]
+	seqs_for_alignment = input_seqs + hiv_seqs
+	seqs_for_alignment.append(get_vrc01_germline_sequence(vgene_only=vgene_only))
+	aln = muscle(seqs_for_alignment)
+	aln_seqs = [seq for seq in aln if seq.id in input_names]
+	aln_gl = [seq for seq in aln if seq.id == 'glVRC01'][0]
+	aln_mins = [seq for seq in aln if seq.id in ['minVRC01', 'min12A21']]
+	aln_hiv = [seq for seq in aln if seq.id in vrc01_class_names]
+	for seq in aln_seqs:
+		seq_data = []
+		for i, (s, g) in enumerate(zip(str(seq.seq), str(aln_gl.seq))):
+			if g == '-' and s == '-':
+				continue
+			min_residues = [seq[i] for seq in aln_min]
+			vrc01_residues = [seq[i] for seq in aln_hiv]
+			if s == '-':
+				seq_data.append(0)
+			elif s == g:
+				seq_data.append(0)
+			elif s != g and s in min_residues:
+				seq_data.append(2)
+			elif s != g and s in vrc01_muts:
+				seq_data.append(3)
+			elif s != g and s not in vrc01_muts:
+				seq_data.append(1)
+			else:
+				seq_data.append(0)
+		data.append(seq_data)
+	return np.array(data)
+
+
+def pixel_plot(data, cmap, figfile, pad=2, labelsize=14, maxy_denom=30, maxx_denom=10):
+	max_y, max_x = data.shape
+	f, ax = plt.subplots(figsize=(max_x / float(maxx_denom), max_y / float(maxy_denom)))
+	plt.pcolor(data, cmap=cmap)
+	ax.set_xlim([0, max_x])
+	ax.set_ylim([0, max_y])
+	ax.spines['right'].set_visible(False)
+	ax.spines['left'].set_visible(False)
+	ax.spines['top'].set_visible(False)
+	ax.spines['bottom'].set_color('k')
+	ax.xaxis.set_minor_locator(minorLocator)
+	ticks = [26, 34, 50, 58, 99, 114]
+	minor_ticks = [13, 30, 42, 54, 78.5, 106.5, 118]
+	minor_labels = ['FR1', 'CDR1', 'FR2', 'CDR2', 'FR3', 'CDR3', 'FR4']
+	ax.set_xticks(ticks)
+	ax.xaxis.set_tick_params(which='major', direction='out',
+							 length=6, color='k', width=1, top='off', labelsize=0)
+	ax.set_xticks(minor_ticks, minor=True)
+	ax.set_xticklabels(minor_labels, minor=True, y=-0.02)
+	ax.xaxis.set_tick_params(which='minor', direction='out',
+							 length=12, color='white', width=1, top='off',
+							 labelsize=labelsize, pad=pad)
+	ticks = [26, 34, 50, 58, 99, 114]
+	plt.xticks(ticks, [' '] * len(ticks))
+	ax.xaxis.set_tick_params(which='major', direction='out',
+							 length=6, color='k', width=1.5, top='off')
+	ax.tick_params(axis='y', labelsize=0)
+	plt.tight_layout()
+	plt.savefig(figfile)
+
+
+def get_vrc01_germline_sequence(vgene_only=True):
+	if vgene_only:
+		gl_vrc01 = ('glVRC01', 'QVQLVQSGAEVKKPGASVKVSCKASGYTFTGYYMHWVRQAPGQGLEWMGWINPNSGGTNYAQKFQGRVTMTRDTSISTAYMELSRLRSDDTAVYYCAR')
+	else:
+		gl_vrc01 = ('glVRC01', 'QVQLVQSGAEVKKPGASVKVSCKASGYTFTGYYMHWVRQAPGQGLEWMGWINPNSGGTNYAQKFQGRVTMTRDTSISTAYMELSRLRSDDTAVYYCARGKNSDYNWDFQHWGQGTLVTVSS')
 	return Sequence(gl_vrc01)
 
 
-def _get_vrc01_class_sequences(chain='heavy'):
-	heavy = [('VRC01', 'QVQLVQSGGQMKKPGESMRISCRASGYEFIDCTLNWIRLAPGKRPEWMGWLKPRGGAVNYARPLQGRVTMTRDVYSDTAFLELRSLTVDDTAVYFCTRGKNCDYNWDFEHWGRGTPVIVSS'),
-			 ('PGV04', 'QVQLVQSGSGVKKPGASVRVSCWTSEDIFERTELIHWVRQAPGQGLEWIGWVKTVTGAVNFGSPDFRQRVSLTRDRDLFTAHMDIRGLTQGDTATYFCARQKFYTGGQGWYFDLWGRGTLIVVSS'),
-			 ('VRC-CH31', 'QVQLVQSGAAVRKPGASVTVSCKFAEDDDYSPYWVNPAPEHFIHFLRQAPGQQLEWLAWMNPTNGAVNYAWYLNGRVTATRDRSMTTAFLEVKSLRSDDTAVYYCARAQKRGRSEWAYAHWGQGTPVVVSS'),
-			 ('3BNC60', 'QVHLSQSGAAVTKPGASVRVSCEASGYKISDHFIHWWRQAPGQGLQWVGWINPKTGQPNNPRQFQGRVSLTRQASWDFDTYSFYMDLKAVRSDDTAIYFCARQRSDFWDFDVWGSGTQVTVSS'),
-			 ('12A12', 'HLVQSGTQVKKPGASVRISCQASGYSFTDYVLHWWRQAPGQGLEWMGWIKPVYGARNYARRFQGRINFDRDIYREIAFMDLSGLRSDDTALYFCARDGSGDDTSWHLDPWGQGTLVIVSA'),
-			 ('PGV20', 'QVHLMQSGTEMKKPGASVRVTCQTSGYTFSDYFIHWLRQVPGRGFEWMGWMNPQWGQVNYARTFQGRVTMTRDVYREVAYLDLRSLTFADTAVYFCARRMRSQDREWDFQHWGQGTRIIVSS')]
-	light = []
+def get_vrc01_class_sequences(chain='heavy', vgene_only=True):
+	if vgene_only:
+		heavy = [('VRC01', 'QVQLVQSGGQMKKPGESMRISCRASGYEFIDCTLNWIRLAPGKRPEWMGWLKPRGGAVNYARPLQGRVTMTRDVYSDTAFLELRSLTVDDTAVYFCTR'),
+				 ('PGV04', 'QVQLVQSGSGVKKPGASVRVSCWTSEDIFERTELIHWVRQAPGQGLEWIGWVKTVTGAVNFGSPDFRQRVSLTRDRDLFTAHMDIRGLTQGDTATYFCAR'),
+				 ('VRC-CH31', 'QVQLVQSGAAVRKPGASVTVSCKFAEDDDYSPYWVNPAPEHFIHFLRQAPGQQLEWLAWMNPTNGAVNYAWYLNGRVTATRDRSMTTAFLEVKSLRSDDTAVYYCAR'),
+				 ('3BNC60', 'QVHLSQSGAAVTKPGASVRVSCEASGYKISDHFIHWWRQAPGQGLQWVGWINPKTGQPNNPRQFQGRVSLTRQASWDFDTYSFYMDLKAVRSDDTAIYFCAR'),
+				 ('12A12', 'HLVQSGTQVKKPGASVRISCQASGYSFTDYVLHWWRQAPGQGLEWMGWIKPVYGARNYARRFQGRINFDRDIYREIAFMDLSGLRSDDTALYFCAR'),
+				 ('PGV20', 'QVHLMQSGTEMKKPGASVRVTCQTSGYTFSDYFIHWLRQVPGRGFEWMGWMNPQWGQVNYARTFQGRVTMTRDVYREVAYLDLRSLTFADTAVYFCAR')]
+		light = []
+	else:
+		heavy = [('VRC01', 'QVQLVQSGGQMKKPGESMRISCRASGYEFIDCTLNWIRLAPGKRPEWMGWLKPRGGAVNYARPLQGRVTMTRDVYSDTAFLELRSLTVDDTAVYFCTRGKNCDYNWDFEHWGRGTPVIVSS'),
+				 ('PGV04', 'QVQLVQSGSGVKKPGASVRVSCWTSEDIFERTELIHWVRQAPGQGLEWIGWVKTVTGAVNFGSPDFRQRVSLTRDRDLFTAHMDIRGLTQGDTATYFCARQKFYTGGQGWYFDLWGRGTLIVVSS'),
+				 ('VRC-CH31', 'QVQLVQSGAAVRKPGASVTVSCKFAEDDDYSPYWVNPAPEHFIHFLRQAPGQQLEWLAWMNPTNGAVNYAWYLNGRVTATRDRSMTTAFLEVKSLRSDDTAVYYCARAQKRGRSEWAYAHWGQGTPVVVSS'),
+				 ('3BNC60', 'QVHLSQSGAAVTKPGASVRVSCEASGYKISDHFIHWWRQAPGQGLQWVGWINPKTGQPNNPRQFQGRVSLTRQASWDFDTYSFYMDLKAVRSDDTAIYFCARQRSDFWDFDVWGSGTQVTVSS'),
+				 ('12A12', 'HLVQSGTQVKKPGASVRISCQASGYSFTDYVLHWWRQAPGQGLEWMGWIKPVYGARNYARRFQGRINFDRDIYREIAFMDLSGLRSDDTALYFCARDGSGDDTSWHLDPWGQGTLVIVSA'),
+				 ('PGV20', 'QVHLMQSGTEMKKPGASVRVTCQTSGYTFSDYFIHWLRQVPGRGFEWMGWMNPQWGQVNYARTFQGRVTMTRDVYREVAYLDLRSLTFADTAVYFCARRMRSQDREWDFQHWGQGTRIIVSS')]
+		light = []
 	seqs = heavy if chain == 'heavy' else light
 	return [Sequence(s) for s in seqs]
 
 
-def _get_minvrc01_sequence():
-	minvrc01 = ('minVRC01', 'QVQLVQSGAEVKKPGASVKVSCKASGYTFTGCTLNWVRQAPGQGLEWMGWIKPRFGAVNYARKFQGRVTMTRDVYSDTAYMELSRLRSDDTAVYYCARGKNCDYNWDFQHWGQGTLVTVSS')
+def get_minvrc01_sequence(vgene_only=True):
+	if vgene_only:
+		minvrc01 = ('minVRC01', 'QVQLVQSGAEVKKPGASVKVSCKASGYTFTGCTLNWVRQAPGQGLEWMGWIKPRFGAVNYARKFQGRVTMTRDVYSDTAYMELSRLRSDDTAVYYCAR')
+	else:
+		minvrc01 = ('minVRC01', 'QVQLVQSGAEVKKPGASVKVSCKASGYTFTGCTLNWVRQAPGQGLEWMGWIKPRFGAVNYARKFQGRVTMTRDVYSDTAYMELSRLRSDDTAVYYCARGKNCDYNWDFQHWGQGTLVTVSS')
 	return Sequence(minvrc01)
+
+
+def get_min12a21_sequence(vgene_only=True):
+	if vgene_only:
+		min12a21 = ('min12A21', 'QVQLVQSGAEVKKPGASVRVSCKASGYTFTNYILHWWRQAPGQGLEWMGWIKPVFGAVNYARQFQGRVTMTRDIYREIAYMELSRLRSDDTAVYYCAR')
+	else:
+		min12a21 = ('min12A21', 'QVQLVQSGAEVKKPGASVRVSCKASGYTFTNYILHWWRQAPGQGLEWMGWIKPVFGAVNYARQFQGRVTMTRDIYREIAYMELSRLRSDDTAVYYCARDESGDDLKWHLHPWGQGTQVIVSP')
+	return Sequence(min12a21)
+
+
+def shared_mutation_kde_plot(xs, ys, cmaps, figfile=None, figsize=(8, 8), n_levels=10, alpha=0.6,
+							 y_label='VRC01-class mutations', x_label='Total amino acid mutations', labelsize=14,
+							 scatter=True, x_jitter=0.15, y_jitter=0.15, scatter_color='grey', scatter_alpha=0.4):
+	sns.set_style('whitegrid')
+	f, ax = plt.subplots(figsize=figsize)
+
+	for x, y, cmap in izip_longest(xs, ys, cmaps):
+		x = np.array(x)
+		y = np.array(y)
+		ax = sns.kdeplot(x, y, cmap=cmap, shade=True,
+						 shade_lowest=False, alpha=alpha, n_levels=n_levels)
+		ax = sns.kdeplot(x, y, cmap=cmap, shade=False,
+						 shade_lowest=False, alpha=alpha, n_levels=n_levels)
+		if scatter:
+			random.seed(1234)
+			plt.scatter([_x + random.uniform(-x_jitter, x_jitter) for _x in x],
+						[_y + random.uniform(-y_jitter, y_jitter) for _y in y],
+						alpha=scatter_alpha, color=scatter_color)
+	axes = plt.gca()
+	axes.set_xlim([0, max(x) + 1])
+	axes.set_ylim([0, max(y) + 1])
+	ax.tick_params(axis='x', labelsize=12)
+	ax.tick_params(axis='y', labelsize=12)
+	plt.ylabel(y_label, size=labelsize)
+	plt.xlabel(x_label, size=labelsize)
+	if figfile is None:
+		plt.show()
+	else:
+		plt.savefig(figfile)
+
+
+def shared_mutation_2dhist_plot(x, y, cmap, figfile=None, figsize=None, figsize_denom=4, n_levels=10, alpha=1.0, x_lim=None, y_lim=None,
+								y_label='VRC01-class mutations', x_label='Total amino acid mutations', labelsize=14,
+								tick_labelsize=12, pad=-4):
+	# adjust the inputs to make them iterable
+	if type(x[0]) in [int, float, np.int64, np.float64]:
+		x = [x]
+		y = [y]
+		cmap = [cmap]
+	sns.set_style('whitegrid')
+	f, ax = plt.subplots(figsize=figsize)
+	# make the plots
+	for _x, _y, _cmap in zip(x, y, cmap):
+		bin_x = max(_x) + 2 if x_lim is None else x_lim[1] + 2
+		bin_y = max(_y) + 2 if y_lim is None else y_lim[1] + 2
+		bins = [[i - 0.5 for i in range(bin_y)], [i - 0.5 for i in range(bin_x)]]
+		data, x_edges, y_edges = np.histogram2d(_y, _x, bins=bins)
+		data = data[::-1]
+		if figsize is None:
+			figsize = (float(bin_x) / figsize_denom, float(bin_y) / figsize_denom)
+		mask = np.array([[val == 0 for val in subl] for subl in data])
+		ax = sns.heatmap(data, cmap=_cmap, square=True, cbar=False, mask=mask,
+						 linewidths=1, linecolor='w', alpha=alpha)
+	if x_lim is None:
+		x_lim = [0, len(data[0])]
+	else:
+		x_lim = [x_lim[0], x_lim[1]]
+	if y_lim is None:
+		y_lim = [0, len(data)]
+	else:
+		y_lim = [y_lim[0], y_lim[1]]
+	ax.set_xlim(x_lim)
+	ax.set_ylim(y_lim)
+	# format ticks and spines
+	x_ticks = [t for t in range(x_lim[0], x_lim[1] + 1)]
+	ax.set_xticks([t + 0.5 for t in x_ticks])
+	x_ticklabels = [str(l) if l % 2 == 0 else '' for l in x_ticks]
+	ax.set_xticklabels(x_ticklabels, rotation=0)
+	y_ticks = [t for t in range(y_lim[0], y_lim[1] + 1)]
+	ax.set_yticks([t + 0.5 for t in y_ticks])
+	y_ticklabels = [str(l) if l % 2 == 0 else '' for l in y_ticks]
+	ax.set_yticklabels(y_ticklabels, rotation=0)
+	ax.spines['right'].set_visible(True)
+	ax.spines['left'].set_visible(True)
+	ax.spines['top'].set_visible(True)
+	ax.spines['bottom'].set_visible(True)
+	ax.spines['right'].set_color('k')
+	ax.spines['left'].set_color('k')
+	ax.spines['top'].set_color('k')
+	ax.spines['bottom'].set_color('k')
+	ax.tick_params(axis='x', labelsize=tick_labelsize)
+	ax.tick_params(axis='y', labelsize=tick_labelsize)
+	plt.ylabel(y_label, size=labelsize)
+	plt.xlabel(x_label, size=labelsize)
+	ax.xaxis.set_tick_params(which='major', direction='out', length=3,
+							 color='k', width=1, top='off', pad=pad)
+	ax.yaxis.set_tick_params(which='major', direction='out', length=3,
+							 color='k', width=1, top='off', pad=pad)
+
+	plt.tight_layout()
+	if figfile is None:
+		plt.show()
+	else:
+		plt.savefig(figfile)
