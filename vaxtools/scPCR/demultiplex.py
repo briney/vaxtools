@@ -326,7 +326,7 @@ def check_cluster_size(clust_size, num_well_seqs, num_plate_seqs,
 									  num_well_seqs,
 									  minimum_well_size,
 									  minimum_cluster_fraction))
-	logger.info('Minimum cluster fraction: {}'.format(minimum_cluster_fraction))
+	# logger.info('Minimum cluster fraction: {}'.format(minimum_cluster_fraction))
 	return False
 
 
@@ -334,7 +334,9 @@ def check_cluster_fraction(clust_size, num_well_seqs,
 	minimum_well_size, minimum_cluster_fraction):
 	if minimum_cluster_fraction == 'largest':
 		return True
-	if 1. * clust_size / num_well_seqs >= float(minimum_well_size):
+	logger.info('Minimum cluster fraction: {}'.format(minimum_cluster_fraction))
+	cluster_fraction = 1. * clust_size / num_well_seqs
+	if cluster_fraction >= float(minimum_well_size):
 		return True
 	return False
 
