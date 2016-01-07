@@ -336,6 +336,7 @@ def check_cluster_fraction(clust_size, num_well_seqs,
 		return True
 	logger.info('Minimum cluster fraction: {}'.format(minimum_cluster_fraction))
 	cluster_fraction = 1. * clust_size / num_well_seqs
+	logger.info('Actual cluster fraction: {}'.format(cluster_fraction))
 	if cluster_fraction >= float(minimum_well_size):
 		return True
 	return False
