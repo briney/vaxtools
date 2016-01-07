@@ -319,7 +319,7 @@ def check_cluster_size(clust_size, num_well_seqs, num_plate_seqs,
 		if num_well_seqs >= rel_size:
 			return(check_cluster_fraction(clust_size,
 										  num_well_seqs,
-										  minimum_well_size,
+										  rel_size,
 										  minimum_cluster_fraction))
 	elif num_well_seqs >= int(minimum_well_size):
 		return(check_cluster_fraction(clust_size,

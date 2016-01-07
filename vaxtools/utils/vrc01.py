@@ -25,7 +25,7 @@
 
 from __future__ import print_function
 
-from collections import Counter
+from collections import Counter, OrderedDict
 from itertools import izip_longest
 import os
 import random
@@ -83,7 +83,7 @@ def vrc01_summary_output_part1(pairs, output_dir):
 	all_stats = {}
 	samples = list(set([p.sample for p in pairs]))
 	for sample in samples:
-		stats = {}
+		stats = OrderedDict()
 		all_pairs = [p for p in pairs if p.sample == sample]
 		just_pairs = [p for p in all_pairs if p.is_pair]
 		all_heavys = [p for p in all_pairs if p.heavy is not None]
@@ -97,6 +97,13 @@ def vrc01_summary_output_part1(pairs, output_dir):
 		vrc01like_pairs = [p for p in just_pairs if p.light['cdr3_len'] == 5 and p.heavy['v_gene']['gene'] == 'IGHV1-2']  # (c)
 		strict_nonvrc01like_pairs = [p for p in just_pairs if all([p.light['cdr3_len'] != 5, p.heavy['v_gene']['gene'] != 'IGHV1-2'])]  # (d)
 		nonvrc01like_pairs = [p for p in just_pairs if not all([p.light['cdr3_len'] == 5, p.heavy['v_gene']['gene'] == 'IGHV1-2'])]  # (e)
+		stats['Number of VH1-2 heavy chains'] = len(vh12_seqs)
+		stats['Number of VH1-2 pairs'] = len(vh12_pairs)
+		stats['Number of 5AA LCDR3 light chains'] = len(lcdr3_seqs)
+		stats['Number of 5AA LCDR3 pairs'] = len(lcdr3_pairs)
+		stats['Number of VRC01-like pairs'] = len(vrc01like_pairs)
+		stats['Number of strict non-VRC01-like pairs'] = len(nonvrc01like_pairs)
+		stats['Number of non-VRC01-like pairs'] = len(strict_nonvrc01like_pairs)
 		stats['Fraction of VH1-2 heavy chains'] = 1. * len(vh12_seqs) / len(all_heavys) if len(all_heavys) > 0 else 0.0
 		stats['Fraction of VH1-2 pairs'] = 1. * len(vh12_pairs) / len(just_pairs) if len(just_pairs) > 0 else 0.0
 		stats['Fraction of 5AA LCDR3 light chains'] = 1. * len(lcdr3_seqs) / len(all_lights) if len(all_lights) > 0 else 0.0
@@ -154,16 +161,16 @@ def vrc01_summary_output_part1(pairs, output_dir):
 		strict_nonvrc01like_lcdr1_del_fraction_lpairs = 1. * len([p for p in strict_nonvrc01like_lcdr1_flanks_lpairs if '-' in p]) / len(strict_nonvrc01like_lcdr1_flanks_lpairs) if len(strict_nonvrc01like_lcdr1_flanks_lpairs) > 0 else 0.0
 		strict_nonvrc01like_lcdr1_del_sizes_lpairs = [p.count('-') for p in strict_nonvrc01like_lcdr1_flanks_lpairs if '-' in p]
 		stats['Fraction of LCDR1 deletions in VH1-2 paired light chains'] = vh12_lcdr1_del_fraction_lpairs
-		stats['LCDR1 deletion sizes in VH1-2 paired light chains'] = ' '.join([str(d) for d in vh12_lcdr1_del_sizes_lpairs])
 		stats['Fraction of LCDR1 deletions in 5AA LCDR3 light chains'] = lcdr3_lcdr1_del_fraction_lseqs
-		stats['LCDR1 deletion sizes in 5AA LCDR3 light chains'] = ' '.join([str(d) for d in lcdr3_lcdr1_del_sizes_lseqs])
 		stats['Fraction of LCDR1 deletions in 5AA LCDR3 paired light chains'] = lcdr3_lcdr1_del_fraction_lpairs
-		stats['LCDR1 deletion sizes in 5AA LCDR3 paired light chains'] = ' '.join([str(d) for d in lcdr3_lcdr1_del_sizes_lpairs])
 		stats['Fraction of LCDR1 deletions in VRC01-like paired light chains'] = vrc01like_lcdr1_del_fraction_lpairs
-		stats['LCDR1 deletion sizes in VRC01-like paired light chains'] = ' '.join([str(d) for d in vrc01like_lcdr1_del_sizes_lpairs])
 		stats['Fraction of LCDR1 deletions in nonVRC01-like paired light chains'] = nonvrc01like_lcdr1_del_fraction_lpairs
-		stats['LCDR1 deletion sizes in nonVRC01-like paired light chains'] = ' '.join([str(d) for d in nonvrc01like_lcdr1_del_sizes_lpairs])
 		stats['Fraction of LCDR1 deletions in strict nonVRC01-like paired light chains'] = strict_nonvrc01like_lcdr1_del_fraction_lpairs
+		stats['LCDR1 deletion sizes in VH1-2 paired light chains'] = ' '.join([str(d) for d in vh12_lcdr1_del_sizes_lpairs])
+		stats['LCDR1 deletion sizes in 5AA LCDR3 light chains'] = ' '.join([str(d) for d in lcdr3_lcdr1_del_sizes_lseqs])
+		stats['LCDR1 deletion sizes in 5AA LCDR3 paired light chains'] = ' '.join([str(d) for d in lcdr3_lcdr1_del_sizes_lpairs])
+		stats['LCDR1 deletion sizes in VRC01-like paired light chains'] = ' '.join([str(d) for d in vrc01like_lcdr1_del_sizes_lpairs])
+		stats['LCDR1 deletion sizes in nonVRC01-like paired light chains'] = ' '.join([str(d) for d in nonvrc01like_lcdr1_del_sizes_lpairs])
 		stats['LCDR1 deletion sizes in strict nonVRC01-like paired light chains'] = ' '.join([str(d) for d in strict_nonvrc01like_lcdr1_del_sizes_lpairs])
 
 		# 11. the % of aa mutations that are due to single vs double nt mutations. (for cases a-e)
@@ -300,8 +307,18 @@ def vrc01_summary_output_part1(pairs, output_dir):
 
 		group = all_pairs[0].group
 		all_stats['{}_{}'.format(group, sample)] = stats
-	df = pd.DataFrame(all_stats).fillna(0)
-	stats_csv = df.T.to_csv()
+	df = pd.DataFrame(all_stats).fillna(0).reindex(stats.keys()).T
+	summary_dfs = []
+	summary_cols = [c for c in df.columns.values.tolist() if 'LCDR1 deletion sizes' not in c]
+	summary_dfs.append(pd.DataFrame({col: '' for col in summary_cols}, index=[""]))
+	summary_dfs.append(pd.DataFrame({col: df[col].min() for col in summary_cols}, index=["min"]))
+	summary_dfs.append(pd.DataFrame({col: df[col].max() for col in summary_cols}, index=["max"]))
+	summary_dfs.append(pd.DataFrame({col: df[col].mean() for col in summary_cols}, index=["mean"]))
+	summary_dfs.append(pd.DataFrame({col: df[col].std() for col in summary_cols}, index=["std"]))
+	summary_dfs.append(pd.DataFrame({col: df[col].sem() for col in summary_cols}, index=["sem"]))
+	for _df in summary_dfs:
+		df = df.append(_df)
+	stats_csv = df.to_csv(sep=',')
 	open(os.path.join(output_dir, 'summary_output.csv'), 'w').write(stats_csv)
 
 
@@ -328,6 +345,7 @@ def vrc01_summary_output_part2(pairs, output_dir):
 		data = {}
 		seqs = sequences[sname]
 		vl_lengths = {}
+		names = []
 		for s in seqs:
 			if s['v_gene']['gene'] not in vl_lengths:
 				vl_lengths[s['v_gene']['gene']] = len(s['cdr1_germ_aa'].replace('-', ''))
@@ -338,12 +356,22 @@ def vrc01_summary_output_part2(pairs, output_dir):
 			group = sample_seqs[0]['group']
 			vl_genes = [s['v_gene']['gene'] for s in sample_seqs if s['chain'] in ['kappa', 'lambda']]
 			vl_counts = Counter(vl_genes)
-			data['{}_{}'.format(group, sample)] = vl_counts
+			norm_vl_counts = {k: 1. * v / sum(vl_counts.values()) for k, v in vl_counts.items()}
+			norm_vl_counts['total sequences'] = sum(vl_counts.values())
+			name = '{}_{}'.format(group, sample)
+			names.append(name)
+			data[name] = norm_vl_counts
 		df = pd.DataFrame(data)
-		df = df / df.sum()
 		df = df.fillna(0)
-		lengths = pd.Series([vl_lengths[v] for v in df.index], index=df.index)
+		lengths = pd.Series([vl_lengths[v] if v != 'total sequences' else '' for v in df.index], index=df.index)
 		df['LCDR1 length'] = lengths
+		cols = ['LCDR1 length'] + sorted(names)
+		df = df[cols]
+		summary_cols = sorted(names)
+		df['min'] = df[summary_cols].min(axis=1)
+		df['max'] = df[summary_cols].max(axis=1)
+		df['mean'] = df[summary_cols].mean(axis=1)
+		df['std'] = df[summary_cols].std(axis=1)
 		outfile = os.path.join(vl_gene_frequency_dir, sname.replace(' ', '_') + '.csv')
 		open(outfile, 'w').write(df.to_csv(sep=','))
 
@@ -393,7 +421,7 @@ def vrc01_summary_output_part4(pairs, output_dir):
 	vh12_hpairs = [p.heavy for p in just_pairs if p.heavy['v_gene']['gene'] == 'IGHV1-2']
 	vh12_lpairs = [p.light for p in just_pairs if p.heavy['v_gene']['gene'] == 'IGHV1-2']
 	lcdr3_lseqs = [p.light for p in all_lights if p.light['cdr3_len'] == 5]
-	lcdr3_hpairs = [p.heavy for p in just_pairs if p.heavy['cdr3_len'] == 5]
+	lcdr3_hpairs = [p.heavy for p in just_pairs if p.light['cdr3_len'] == 5]
 	lcdr3_lpairs = [p.light for p in just_pairs if p.light['cdr3_len'] == 5]
 	vrc01like_hpairs = [p.heavy for p in just_pairs if p.light['cdr3_len'] == 5 and p.heavy['v_gene']['gene'] == 'IGHV1-2']
 	vrc01like_lpairs = [p.light for p in just_pairs if p.light['cdr3_len'] == 5 and p.heavy['v_gene']['gene'] == 'IGHV1-2']
@@ -418,22 +446,25 @@ def vrc01_summary_output_part4(pairs, output_dir):
 		seqs = sequences[sname]
 		for sample in samples:
 			sample_seqs = [s for s in seqs if s['sample'] == sample]
+			ins_seqs = [s for s in sample_seqs if 'v_ins' in s]
+			del_seqs = [s for s in sample_seqs if 'v_del' in s]
 			if not sample_seqs:
 				continue
 			try:
 				group = sample_seqs[0]['group']
 			except KeyError:
 				group = 'None'
-			ins_counts = np.bincount([indel['len'] for s in sample_seqs if 'v_ins' in s for indel in s['v_ins']])
-			ins_lengths = range(len(ins_counts))
-			ins_dist = {l: c for l, c in zip(ins_lengths, ins_counts) if c > 0}
-			del_counts = np.bincount([indel['len'] for s in sample_seqs if 'v_del' in s for indel in s['v_del']])
-			del_lengths = range(len(del_counts))
-			del_dist = {l: c for l, c in zip(del_lengths, del_counts) if c > 0}
-			data['{}_{}_insertions'.format(group, sample)] = ins_dist
-			data['{}_{}_deletions'.format(group, sample)] = del_dist
+			ins_dist = Counter([indel['len'] for s in ins_seqs for indel in s['v_ins']])
+			del_dist = Counter([indel['len'] for s in del_seqs for indel in s['v_del']])
+			norm_ins_dist = {k: 1. * v / sum(ins_dist.values()) for k, v in ins_dist.items()}
+			norm_del_dist = {k: 1. * v / sum(del_dist.values()) for k, v in del_dist.items()}
+			norm_ins_dist['total sequences'] = len(sample_seqs)
+			norm_ins_dist['indel sequences'] = len(ins_seqs)
+			norm_del_dist['total sequences'] = len(sample_seqs)
+			norm_del_dist['indel sequences'] = len(del_seqs)
+			data['{}_{}_insertions'.format(group, sample)] = norm_ins_dist
+			data['{}_{}_deletions'.format(group, sample)] = norm_del_dist
 		df = pd.DataFrame(data)
-		df = df / df.sum()
 		df = df.fillna(0)
 		outfile = os.path.join(indel_dir, sname.replace(' ', '_') + '.csv')
 		open(outfile, 'w').write(df.to_csv(sep=','))

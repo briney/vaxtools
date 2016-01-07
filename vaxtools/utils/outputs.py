@@ -45,13 +45,22 @@ def schief_csv_output(pairs, output_file, sep=','):
 
 
 def _get_name(p):
+	# TODO
+	# Add the sample name to the name (should be <group>_<sample>_<platewell>)
+	name = ''
 	if p.heavy is not None:
 		if 'group' in p.heavy:
-			return '{}_{}'.format(p.heavy['group'], p.name)
-	if p.light is not None:
+			name += '{}_'.format(p.heavy['group'])
+		if 'sample' in p.heavy:
+			name += '{}_'.format(p.heavy['sample'])
+		name += p.name
+	elif p.light is not None:
 		if 'group' in p.light:
-			return '{}_{}'.format(p.light['group'], p.name)
-	return p.name
+			name += '{}_'.format(p.light['group'])
+		if 'sample' in p.light:
+			name += '{}_'.format(p.light['sample'])
+		name += p.name
+	return name if name != '' else p.name
 
 
 def _get_fr_identity(seq, res='nt'):
