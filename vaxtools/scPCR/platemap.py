@@ -31,7 +31,8 @@ import string
 
 from openpyxl import load_workbook
 
-from abtools.utils import log
+from abtools import log
+from abtools.pipeline import list_files
 
 from vaxtools.utils.containers import Well, Sample, Plate
 
@@ -42,10 +43,9 @@ def parse_args():
 	parser.add_argument('-i', '--input', dest='input', required=True,
 						help="The input file, in Excel format. Required.")
 	parser.add_argument('-o', '--out', dest='output', required=True,
-						help="The output directory, into which the map files will be deposited. \
-						If the directory does not exist, it will be created. \
+						help="The output file, into which the platemap data will be written. \
 						Required.")
-	parser.add_argument('-l', '--log', dest='logfile', default=None,
+	parser.add_argument('-l', '--log', dest='log', default=None,
 						help="The log file. If not provided, defaults to <output>/platemap.log.")
 	parser.add_argument('-e', '--experiment', dest='experiment', default=None,
 						help="Name of the experiment. \
@@ -87,17 +87,18 @@ def parse_args():
 	parser.add_argument('--max-sample-number', default=4, type=int,
 						help="Maximum number of samples in a single plate. Default is 4. \
 						Increase if there are more than four samples for any well in the platemap.")
+	parser.add_argument('-D', '--debug')
 	return parser.parse_args()
 
 
 class Args(object):
 	"""docstring for Args"""
-	def __init__(self, input=None, output=None,
+	def __init__(self, input=None, output=None, log=None,
 		experiment=None, plate='plate',
 		plate_numbering_start=1, plate_delim_prefix=None,
 		plate_delim_well_number=None, plate_name_row_number=None,
 		sample_row_number=None, sample_well_number=None, sample_well_offset=1,
-		max_sample_number=4):
+		max_sample_number=4, debug=False):
 		super(Args, self).__init__()
 
 		if not all([input, output, plate_delim_prefix, plate_delim_well_nmber, sample_row_number, sample_well_number]):
@@ -109,6 +110,7 @@ class Args(object):
 
 		self.input = input
 		self.output = output
+		self.log = log
 		self.experiment = experiment
 		self.plate = plate
 		self.plate_numbering_start = int(plate_numbering_start)
@@ -119,12 +121,13 @@ class Args(object):
 		self.sample_well_number = int(sample_well_number) if sample_well_number is not None else None
 		self.sample_well_offset = int(sample_well_offset)
 		self.max_sample_number = int(max_sample_number)
+		args.debug = debug
 
 
-def get_experiment(args):
+def get_experiment(f, args):
 	if args.experiment:
 		return args.experiment
-	exp = os.path.basename(args.input).rstrip('.xlsx').rstrip('.xls')
+	exp = os.path.basename(f).rstrip('.xlsx').rstrip('.xls')
 	return exp
 
 
@@ -137,7 +140,7 @@ def get_plate_blocks(ws, args):
 		if not row[num - 1].value:
 			curr_plate.append(row)
 			continue
-		if row[num - 1].value.startswith(prefix):
+		if str(row[num - 1].value).startswith(prefix):
 			plate_blocks.append(curr_plate)
 			curr_plate = [row, ]
 		else:
@@ -160,13 +163,13 @@ def parse_plates(raw_plates, args):
 				num = '0' + num
 			plate_name = '{}{}'.format(args.plate_prefix, num)
 		logger.info('Processing plate: {}'.format(plate_name))
-		samples = parse_samples(rp)
+		samples = parse_samples(rp, args)
 		wells = parse_plate_grid(rp)
 		plates.append(Plate(plate_name, wells, samples))
 	return plates
 
 
-def parse_samples(plate):
+def parse_samples(plate, args):
 	samples = []
 	row = plate[args.sample_row_number]
 	start = args.sample_well_number - 1
@@ -195,7 +198,7 @@ def parse_plate_grid(raw_plate):
 	# find the row that contains the column labels
 	labelr = 0
 	for i, row in enumerate(raw_plate):
-		if len([r for r in row if r.value in range(1, 13)]) == 12:
+		if len([r for r in row[labelc + 1:] if r.value in range(1, 13)]) == 12:
 			labelr = i
 	gridr = labelr + 1
 	# parse the cells from the plate grid
@@ -210,24 +213,37 @@ def parse_plate_grid(raw_plate):
 
 
 def write_output(plates, experiment, args):
+	output = []
+	ohandle = open(args.output, 'w')
 	for i, plate in enumerate(plates):
-		ohandle = open(os.path.join(args.output, plate.name), 'w')
-		output = []
 		for well in plate.wells:
-			output.append('{}\t{}\t{}\t{}'.format(
-				well.well, well.sample, well.value, experiment))
-		ohandle.write('\n'.join(output))
+			output.append('{}-{}\t{}\t{}\t{}'.format(
+				plate.name, well.well, well.sample, well.value, experiment))
+	ohandle.write('\n'.join(output))
+	# for i, plate in enumerate(plates):
+	# 	ohandle = open(os.path.join(args.output, plate.name), 'w')
+	# 	output = []
+	# 	for well in plate.wells:
+	# 		output.append('{}\t{}\t{}\t{}'.format(
+	# 			well.well, well.sample, well.value, experiment))
+	# 	ohandle.write('\n'.join(output))
 
 
 def run(**kwargs):
 	args = Args(**kwargs)
 	global logger
-	logger = log.get_logger()
+	logger = log.get_logger('demultiplex')
+	main(args)
+
+
+def run_standalone(args):
+	global logger
+	logger = log.get_logger('demultiplex')
 	main(args)
 
 
 def main(args):
-	for f in list_files(args):
+	for f in list_files(args.input):
 		experiment = get_experiment(f, args)
 		wb = load_workbook(f)
 		ws = wb[wb.get_sheet_names()[0]]
@@ -245,5 +261,5 @@ if __name__ == '__main__':
 	if args.log is None:
 		args.log = os.path.join(args.output, 'platemap.log')
 	log.setup_logging(args.log)
-	logger = log.get_logger()
+	logger = log.get_logger('demultiplex')
 	main(args)

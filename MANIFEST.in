@@ -4,3 +4,4 @@ include vaxtools/bin/*
 include vaxtools/scPCR/*
 include vaxtools/scPCR/indexes/*
 include vaxtools/utils/*
+include vaxtools/virus/*

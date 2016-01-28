@@ -28,7 +28,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from abtools.utils.pipeline import make_dir
+from abtools.pipeline import make_dir
 
 
 def schief_csv_output(pairs, output_file, sep=','):
@@ -38,6 +38,7 @@ def schief_csv_output(pairs, output_file, sep=','):
 	for p in sorted(pairs, key=lambda x: _get_name(x)):
 		name = _get_name(p)
 		line = [name, ]
+		line += _get_pair_metadata(p)
 		line += _schief_output_line(p.heavy)
 		line += _schief_output_line(p.light)
 		output.append(sep.join([str(l) for l in line]))
@@ -45,22 +46,26 @@ def schief_csv_output(pairs, output_file, sep=','):
 
 
 def _get_name(p):
-	# TODO
-	# Add the sample name to the name (should be <group>_<sample>_<platewell>)
 	name = ''
 	if p.heavy is not None:
-		if 'group' in p.heavy:
-			name += '{}_'.format(p.heavy['group'])
-		if 'sample' in p.heavy:
-			name += '{}_'.format(p.heavy['sample'])
-		name += p.name
+		if 'seq_id' in p.heavy:
+			name = p.heavy['seq_id']
 	elif p.light is not None:
-		if 'group' in p.light:
-			name += '{}_'.format(p.light['group'])
-		if 'sample' in p.light:
-			name += '{}_'.format(p.light['sample'])
-		name += p.name
+		if 'seq_id' in p.light:
+			name = p.light['seq_id']
 	return name if name != '' else p.name
+
+
+def _get_pair_metadata(p):
+	if p.heavy is not None:
+		seq = p.heavy
+	else:
+		seq = p.light
+	experiment = seq['experiment'] if 'experiment' in seq else ''
+	group = seq['group'] if 'group' in seq else ''
+	subject = seq['subject'] if 'subject' in seq else ''
+	timepoint = seq['timepoint'] if 'timepoint' in seq else ''
+	return [experiment, group, subject, timepoint]
 
 
 def _get_fr_identity(seq, res='nt'):
@@ -73,7 +78,7 @@ def _get_fr_identity(seq, res='nt'):
 
 
 def _get_schief_output_header(sep):
-	fields = ['Sequence ID', 'VH gene', 'DH gene', 'JH gene', 'CDR3 length',
+	fields = ['Sequence ID', 'Experiment', 'Group', 'Subject', 'Timepoint', 'VH gene', 'DH gene', 'JH gene', 'CDR3 length',
 			  'Junction AA', 'Junction NT seq', '% VH mutation (NT)', '% FR mutation (NT)',
 			  '% VH mutation (AA)', '% FR mutation (AA)', 'VH insertions', 'VH deletions',
 			  'VDJ AA seq', 'VDJ NT seq', 'Insertion count', 'Insertion lengths',
@@ -90,6 +95,10 @@ def _schief_output_line(seq):
 	if seq is None:
 		return [''] * 20
 	line = []
+	# line.append(seq['experiment'] if 'experiment' in seq else '')
+	# line.append(seq['group'] if 'group' in seq else '')
+	# line.append(seq['subject'] if 'subject' in seq else '')
+	# line.append(seq['timepoint'] if 'timepoint' in seq else '')
 	line.append(seq['v_gene']['gene'])
 	if seq['chain'] == 'heavy':
 		line.append(seq['d_gene']['gene'] if 'd_gene' in seq else '')

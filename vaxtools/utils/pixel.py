@@ -33,7 +33,7 @@ from Bio.Align import AlignInfo
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-from abtools.utils.alignment import mafft
+from abtools.alignment import mafft
 
 
 def make_pixel(seqs, ffile, temp_dir='/tmp', consentroid=None):

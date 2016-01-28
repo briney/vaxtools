@@ -48,18 +48,14 @@ import pandas as pd
 from Bio import AlignIO
 from Bio.Align import AlignInfo
 
-# import matplotlib
-# # Force matplotlib to not use any Xwindows backend.
-# matplotlib.use('Agg')
-
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
 from vaxtools.utils import pixel
 
-from abtools.utils import log, mongodb
-from abtools.utils.alignment import mafft
-from abtools.utils.pipeline import make_dir
+from abtools import log, mongodb
+from abtools.alignment import mafft
+from abtools.pipeline import make_dir
 
 
 def parse_args():

@@ -34,13 +34,13 @@ import numpy as np
 import pandas as pd
 
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg', warn=False)
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from abtools.utils.sequence import Sequence
-from abtools.utils.alignment import muscle
-from abtools.utils.pipeline import make_dir
+from abtools.sequence import Sequence
+from abtools.alignment import muscle
+from abtools.pipeline import make_dir
 
 from vaxtools.utils.mutations import single_nucleotide_aa_mutations, multiple_nucleotide_aa_mutations, silent_mutations, nonsilent_mutations
 from vaxtools.utils.outputs import schief_csv_output
@@ -97,13 +97,17 @@ def vrc01_summary_output_part1(pairs, output_dir):
 		vrc01like_pairs = [p for p in just_pairs if p.light['cdr3_len'] == 5 and p.heavy['v_gene']['gene'] == 'IGHV1-2']  # (c)
 		strict_nonvrc01like_pairs = [p for p in just_pairs if all([p.light['cdr3_len'] != 5, p.heavy['v_gene']['gene'] != 'IGHV1-2'])]  # (d)
 		nonvrc01like_pairs = [p for p in just_pairs if not all([p.light['cdr3_len'] == 5, p.heavy['v_gene']['gene'] == 'IGHV1-2'])]  # (e)
+		stats['Subject'] = all_pairs[0].subject if all_pairs[0].subject is not None else ''
+		stats['Experiment'] = all_pairs[0].experiment if all_pairs[0].experiment is not None else ''
+		stats['Group'] = all_pairs[0].group if all_pairs[0].group is not None else ''
+		stats['Timepoint'] = all_pairs[0].timepoint if all_pairs[0].timepoint is not None else ''
 		stats['Number of VH1-2 heavy chains'] = len(vh12_seqs)
 		stats['Number of VH1-2 pairs'] = len(vh12_pairs)
 		stats['Number of 5AA LCDR3 light chains'] = len(lcdr3_seqs)
 		stats['Number of 5AA LCDR3 pairs'] = len(lcdr3_pairs)
 		stats['Number of VRC01-like pairs'] = len(vrc01like_pairs)
-		stats['Number of strict non-VRC01-like pairs'] = len(nonvrc01like_pairs)
-		stats['Number of non-VRC01-like pairs'] = len(strict_nonvrc01like_pairs)
+		stats['Number of strict non-VRC01-like pairs'] = len(strict_nonvrc01like_pairs)
+		stats['Number of non-VRC01-like pairs'] = len(nonvrc01like_pairs)
 		stats['Fraction of VH1-2 heavy chains'] = 1. * len(vh12_seqs) / len(all_heavys) if len(all_heavys) > 0 else 0.0
 		stats['Fraction of VH1-2 pairs'] = 1. * len(vh12_pairs) / len(just_pairs) if len(just_pairs) > 0 else 0.0
 		stats['Fraction of 5AA LCDR3 light chains'] = 1. * len(lcdr3_seqs) / len(all_lights) if len(all_lights) > 0 else 0.0
@@ -307,18 +311,26 @@ def vrc01_summary_output_part1(pairs, output_dir):
 
 		group = all_pairs[0].group
 		all_stats['{}_{}'.format(group, sample)] = stats
-	df = pd.DataFrame(all_stats).fillna(0).reindex(stats.keys()).T
+	df = pd.DataFrame(all_stats).fillna(0).T
 	summary_dfs = []
 	summary_cols = [c for c in df.columns.values.tolist() if 'LCDR1 deletion sizes' not in c]
+	summary_cols = [c for c in summary_cols if c not in ['Experiment', 'Group', 'Timepoint']]
 	summary_dfs.append(pd.DataFrame({col: '' for col in summary_cols}, index=[""]))
-	summary_dfs.append(pd.DataFrame({col: df[col].min() for col in summary_cols}, index=["min"]))
-	summary_dfs.append(pd.DataFrame({col: df[col].max() for col in summary_cols}, index=["max"]))
-	summary_dfs.append(pd.DataFrame({col: df[col].mean() for col in summary_cols}, index=["mean"]))
-	summary_dfs.append(pd.DataFrame({col: df[col].std() for col in summary_cols}, index=["std"]))
-	summary_dfs.append(pd.DataFrame({col: df[col].sem() for col in summary_cols}, index=["sem"]))
+	summary_dfs.append(pd.DataFrame({col: df[col].min() if col != 'Subject' else '' for col in summary_cols}, index=["min"]))
+	summary_dfs.append(pd.DataFrame({col: df[col].max() if col != 'Subject' else '' for col in summary_cols}, index=["max"]))
+	summary_dfs.append(pd.DataFrame({col: df[col].mean() if col != 'Subject' else '' for col in summary_cols}, index=["mean"]))
+	summary_dfs.append(pd.DataFrame({col: df[col].std() if col != 'Subject' else '' for col in summary_cols}, index=["std"]))
+	summary_dfs.append(pd.DataFrame({col: df[col].sem() if col != 'Subject' else '' for col in summary_cols}, index=["sem"]))
 	for _df in summary_dfs:
 		df = df.append(_df)
-	stats_csv = df.to_csv(sep=',')
+	df.loc['min', 'Subject'] = 'min'
+	df.loc['max', 'Subject'] = 'max'
+	df.loc['mean', 'Subject'] = 'mean'
+	df.loc['std', 'Subject'] = 'std'
+	df.loc['sem', 'Subject'] = 'sem'
+	df = df[stats.keys()]
+	stats_csv = df.to_csv(sep=',', index=False)
+	# stats_csv = df.to_csv(sep=',', index=True)
 	open(os.path.join(output_dir, 'summary_output.csv'), 'w').write(stats_csv)
 
 
@@ -350,15 +362,19 @@ def vrc01_summary_output_part2(pairs, output_dir):
 			if s['v_gene']['gene'] not in vl_lengths:
 				vl_lengths[s['v_gene']['gene']] = len(s['cdr1_germ_aa'].replace('-', ''))
 		for sample in samples:
-			sample_seqs = [s for s in seqs if s['sample'] == sample]
+			sample_seqs = [s for s in seqs if _get_sample(s) == sample]
 			if not sample_seqs:
 				continue
-			group = sample_seqs[0]['group']
+			# if 'group' in sample_seqs[0]:
+			# 	group = sample_seqs[0]['group']
+			# else:
+			# 	group = 'None'
 			vl_genes = [s['v_gene']['gene'] for s in sample_seqs if s['chain'] in ['kappa', 'lambda']]
 			vl_counts = Counter(vl_genes)
 			norm_vl_counts = {k: 1. * v / sum(vl_counts.values()) for k, v in vl_counts.items()}
 			norm_vl_counts['total sequences'] = sum(vl_counts.values())
-			name = '{}_{}'.format(group, sample)
+			# name = '{}_{}'.format(group, sample)
+			name = sample
 			names.append(name)
 			data[name] = norm_vl_counts
 		df = pd.DataFrame(data)
@@ -374,6 +390,19 @@ def vrc01_summary_output_part2(pairs, output_dir):
 		df['std'] = df[summary_cols].std(axis=1)
 		outfile = os.path.join(vl_gene_frequency_dir, sname.replace(' ', '_') + '.csv')
 		open(outfile, 'w').write(df.to_csv(sep=','))
+
+
+def _get_sample(s):
+	slist = []
+	if 'experiment' in s:
+		slist.append(s['experiment'])
+	if 'group' in s:
+		slist.append(s['group'])
+	if 'subject' in s:
+		slist.append(s['subject'])
+	if 'timepoint' in s:
+		slist.append(s['timepoint'])
+	return '|'.join(slist)
 
 
 def vrc01_summary_output_part3(pairs, output_dir):
@@ -445,15 +474,16 @@ def vrc01_summary_output_part4(pairs, output_dir):
 		data = {}
 		seqs = sequences[sname]
 		for sample in samples:
-			sample_seqs = [s for s in seqs if s['sample'] == sample]
+			sample_seqs = [s for s in seqs if _get_sample(s) == sample]
+			# sample_seqs = [s for s in seqs if s['sample'] == sample]
 			ins_seqs = [s for s in sample_seqs if 'v_ins' in s]
 			del_seqs = [s for s in sample_seqs if 'v_del' in s]
 			if not sample_seqs:
 				continue
-			try:
-				group = sample_seqs[0]['group']
-			except KeyError:
-				group = 'None'
+			# try:
+			# 	group = sample_seqs[0]['group']
+			# except KeyError:
+			# 	group = 'None'
 			ins_dist = Counter([indel['len'] for s in ins_seqs for indel in s['v_ins']])
 			del_dist = Counter([indel['len'] for s in del_seqs for indel in s['v_del']])
 			norm_ins_dist = {k: 1. * v / sum(ins_dist.values()) for k, v in ins_dist.items()}
@@ -462,8 +492,10 @@ def vrc01_summary_output_part4(pairs, output_dir):
 			norm_ins_dist['indel sequences'] = len(ins_seqs)
 			norm_del_dist['total sequences'] = len(sample_seqs)
 			norm_del_dist['indel sequences'] = len(del_seqs)
-			data['{}_{}_insertions'.format(group, sample)] = norm_ins_dist
-			data['{}_{}_deletions'.format(group, sample)] = norm_del_dist
+			# data['{}_{}_insertions'.format(group, sample)] = norm_ins_dist
+			# data['{}_{}_deletions'.format(group, sample)] = norm_del_dist
+			data['{}_insertions'.format(sample)] = norm_ins_dist
+			data['{}_deletions'.format(sample)] = norm_del_dist
 		df = pd.DataFrame(data)
 		df = df.fillna(0)
 		outfile = os.path.join(indel_dir, sname.replace(' ', '_') + '.csv')
@@ -478,20 +510,23 @@ def vrc01_summary_output_part5(pairs, output_dir):
 
 def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=True,
 							   vgene_only=True, chain='heavy', aa=True):
-	input_seqs = [Sequence(s) for s in seqs]
+	'''
+	seqs should be an iterable of anything that abtools.utils.sequence.Sequence can handle
+	'''
+	input_seqs = [Sequence(s, aa=aa) for s in seqs]
 	vrc01_seqs = []
 	shared = []
 	total = []
 	# get VRC01-class sequences
 	if vrc01_class:
-		vrc01_seqs += get_vrc01_class_sequences(chain=chain)
+		vrc01_seqs += get_vrc01_class_sequences(chain=chain, vgene_only=vgene_only)
 	if minvrc01:
-		vrc01_seqs.append(get_minvrc01_sequence())
+		vrc01_seqs.append(get_minvrc01_sequence(vgene_only=vgene_only))
 	if min12a21:
-		vrc01_seqs.append(get_min12a21_sequence())
+		vrc01_seqs.append(get_min12a21_sequence(vgene_only=vgene_only))
 	vrc01_names = [s.id for s in vrc01_seqs]
 	# get glVRC01 sequence
-	glvrc01 = get_vrc01_germline_sequence()
+	glvrc01 = get_vrc01_germline_sequence(vgene_only=vgene_only)
 	glvrc01_name = glvrc01.id
 	# identify VRC01-class mutations
 	for s in input_seqs:
@@ -501,7 +536,7 @@ def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=T
 		aln_gl = [seq for seq in aln if seq.id == glvrc01_name][0]
 		aln_vrc01s = [seq for seq in aln if seq.id in vrc01_names]
 		if vgene_only:
-			total.append(sum([s != g for s, g in zip(str(aln_seq.seq), str(aln_gl.seq)) if g != '-']))
+			total.append(sum([_s != g for _s, g in zip(str(aln_seq.seq), str(aln_gl.seq)) if g != '-']))
 		else:
 			total.append(sum([s != g for s, g in zip(str(aln_seq.seq), str(aln_gl.seq))]))
 		all_shared = {}
@@ -524,7 +559,7 @@ def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=T
 
 
 def vrc01_class_mutation_positions(seqs, vrc01_class=True, minvrc01=True, min12a21=True,
-								   vgene_only=True, chain='heavy', aa=True, drop_gaps=True):
+								   vgene_only=False, chain='heavy', aa=True, drop_gaps=True):
 	data = []
 	hiv_seqs = []
 	input_seqs = [Sequence(s, aa=aa) for s in seqs]
@@ -566,7 +601,10 @@ def vrc01_class_mutation_positions(seqs, vrc01_class=True, minvrc01=True, min12a
 	return np.array(data)
 
 
-def pixel_plot(data, cmap, figfile, pad=2, labelsize=14, maxy_denom=30, maxx_denom=10):
+def pixel_plot(data, cmap, figfile=None, pad=2, labelsize=14, maxy_denom=30, maxx_denom=10):
+	'''
+	::data:: is the output from vrc01_class_mutation_positions()
+	'''
 	max_y, max_x = data.shape
 	f, ax = plt.subplots(figsize=(max_x / float(maxx_denom), max_y / float(maxy_denom)))
 	plt.pcolor(data, cmap=cmap)
@@ -594,7 +632,10 @@ def pixel_plot(data, cmap, figfile, pad=2, labelsize=14, maxy_denom=30, maxx_den
 							 length=6, color='k', width=1.5, top='off')
 	ax.tick_params(axis='y', labelsize=0)
 	plt.tight_layout()
-	plt.savefig(figfile)
+	if figfile is None:
+		plt.show()
+	else:
+		plt.savefig(figfile)
 
 
 def get_vrc01_germline_sequence(vgene_only=True):
@@ -714,14 +755,17 @@ def shared_mutation_2dhist_plot(x, y, cmap, figfile=None, figsize=None, figsize_
 	ax.set_yticks([t + 0.5 for t in y_ticks])
 	y_ticklabels = [str(l) if l % 2 == 0 else '' for l in y_ticks]
 	ax.set_yticklabels(y_ticklabels, rotation=0)
-	ax.spines['right'].set_visible(True)
-	ax.spines['left'].set_visible(True)
-	ax.spines['top'].set_visible(True)
-	ax.spines['bottom'].set_visible(True)
-	ax.spines['right'].set_color('k')
-	ax.spines['left'].set_color('k')
-	ax.spines['top'].set_color('k')
-	ax.spines['bottom'].set_color('k')
+	for position in ['right', 'left', 'top', 'bottom']:
+		ax.spines[position].set_visible(True)
+		ax.spines[position].set_color('k')
+	# ax.spines['right'].set_visible(True)
+	# ax.spines['left'].set_visible(True)
+	# ax.spines['top'].set_visible(True)
+	# ax.spines['bottom'].set_visible(True)
+	# ax.spines['right'].set_color('k')
+	# ax.spines['left'].set_color('k')
+	# ax.spines['top'].set_color('k')
+	# ax.spines['bottom'].set_color('k')
 	ax.tick_params(axis='x', labelsize=tick_labelsize)
 	ax.tick_params(axis='y', labelsize=tick_labelsize)
 	plt.ylabel(y_label, size=labelsize)

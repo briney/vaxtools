@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# filename: vaxtools_demultiplex
+# filename: hiv_env.py
 
 
 #
@@ -23,21 +23,8 @@
 #
 
 
-from __future__ import print_function, unicode_literals
-
-# import matplotlib as mpl
-# mpl.use('Agg')
-
-import os
-import warnings
-
-from abtools import log
-
-from vaxtools.scPCR import demultiplex
 
 
-if __name__ == '__main__':
-	args = demultiplex.parse_args()
-	logfile = args.log if args.log else os.path.join(os.path.dirname(args.output), 'demultiplex.log')
-	log.setup_logging(logfile, print_log_location=False, debug=args.debug)
-	demultiplex.main(args, logfile=logfile)
+
+
+

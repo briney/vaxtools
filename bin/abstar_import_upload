@@ -28,10 +28,10 @@ import os
 
 import abstar
 
-from abstar.utils import log
-from abtools.utils.mongodb import mongoimport
-from abtools.utils.pipeline import initialize, make_dir
-from abtools.utils.s3 import compress_and_upload
+from abstar import log
+from abtools.mongodb import mongoimport
+from abtools.pipeline import initialize, make_dir
+from abtools.s3 import compress_and_upload
 
 
 def parse_args():
