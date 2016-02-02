@@ -27,122 +27,122 @@ from vaxtools.utils.codon_tables import translate
 
 
 def single_nucleotide_aa_mutations(seq, v=True, j=True):
-	'''
-	Analyses codons to determine the number of AA mutations that requre
-	single nucleotide changes.
+    '''
+    Analyses codons to determine the number of AA mutations that requre
+    single nucleotide changes.
 
-	By default, both V and J genes are analysed. Either can be disabled
-	by setting ::v:: or ::j:: to False.
-	'''
-	single = 0
-	if v:
-		vquery = seq['codons']['v']
-		vgerm = seq['codons']['v_germ']
-		for q, g in zip(vquery, vgerm):
-			diffs = _codon_nt_changes(q, g)
-			if diffs == 1:
-				single += 1
-	if j:
-		jquery = seq['codons']['j']
-		jgerm = seq['codons']['j_germ']
-		for q, g in zip(jquery, jgerm):
-			diffs = _codon_nt_changes(q, g)
-			if diffs == 1:
-				single += 1
-	return single
+    By default, both V and J genes are analysed. Either can be disabled
+    by setting ::v:: or ::j:: to False.
+    '''
+    single = 0
+    if v:
+        vquery = seq['codons']['v']
+        vgerm = seq['codons']['v_germ']
+        for q, g in zip(vquery, vgerm):
+            diffs = _codon_nt_changes(q, g)
+            if diffs == 1:
+                single += 1
+    if j:
+        jquery = seq['codons']['j']
+        jgerm = seq['codons']['j_germ']
+        for q, g in zip(jquery, jgerm):
+            diffs = _codon_nt_changes(q, g)
+            if diffs == 1:
+                single += 1
+    return single
 
 
 def multiple_nucleotide_aa_mutations(seq, v=True, j=True):
-	'''
-	Analyses codons to determine the number of AA mutations that requre
-	multiple nucleotide changes.
+    '''
+    Analyses codons to determine the number of AA mutations that requre
+    multiple nucleotide changes.
 
-	By default, both V and J genes are analysed. Either can be disabled
-	by setting ::v:: or ::j:: to False.
-	'''
-	multiple = 0
-	if v:
-		vquery = seq['codons']['v']
-		vgerm = seq['codons']['v_germ']
-		for q, g in zip(vquery, vgerm):
-			diffs = _codon_nt_changes(q, g)
-			if diffs > 1:
-				multiple += 1
-	if j:
-		jquery = seq['codons']['j']
-		jgerm = seq['codons']['j_germ']
-		for q, g in zip(jquery, jgerm):
-			diffs = _codon_nt_changes(q, g)
-			if diffs > 1:
-				multiple += 1
-	return multiple
+    By default, both V and J genes are analysed. Either can be disabled
+    by setting ::v:: or ::j:: to False.
+    '''
+    multiple = 0
+    if v:
+        vquery = seq['codons']['v']
+        vgerm = seq['codons']['v_germ']
+        for q, g in zip(vquery, vgerm):
+            diffs = _codon_nt_changes(q, g)
+            if diffs > 1:
+                multiple += 1
+    if j:
+        jquery = seq['codons']['j']
+        jgerm = seq['codons']['j_germ']
+        for q, g in zip(jquery, jgerm):
+            diffs = _codon_nt_changes(q, g)
+            if diffs > 1:
+                multiple += 1
+    return multiple
 
 
 def _codon_nt_changes(q, g):
-	if any(['-' in q, '-' in g]):
-		return 0
-	qaa = translate(q)
-	gaa = translate(g)
-	if q == g:
-		return 0
-	diffs = 0
-	for _q, _g in zip(q, g):
-		if _q != _g:
-			diffs += 1
-	return diffs
+    if any(['-' in q, '-' in g]):
+        return 0
+    qaa = translate(q)
+    gaa = translate(g)
+    if q == g:
+        return 0
+    diffs = 0
+    for _q, _g in zip(q, g):
+        if _q != _g:
+            diffs += 1
+    return diffs
 
 
 
 def silent_mutations(seq, v=True, j=True):
-	silent = 0
-	if v:
-		vquery = seq['codons']['v']
-		vgerm = seq['codons']['v_germ']
-		for q, g in zip(vquery, vgerm):
-			silent += _is_silent_mutation(q, g)
-	if j:
-		jquery = seq['codons']['j']
-		jgerm = seq['codons']['j_germ']
-		for q, g in zip(jquery, jgerm):
-			silent += _is_silent_mutation(q, g)
-	return silent
+    silent = 0
+    if v:
+        vquery = seq['codons']['v']
+        vgerm = seq['codons']['v_germ']
+        for q, g in zip(vquery, vgerm):
+            silent += _is_silent_mutation(q, g)
+    if j:
+        jquery = seq['codons']['j']
+        jgerm = seq['codons']['j_germ']
+        for q, g in zip(jquery, jgerm):
+            silent += _is_silent_mutation(q, g)
+    return silent
 
 
 def nonsilent_mutations(seq, v=True, j=True):
-	nonsilent = 0
-	if v:
-		vquery = seq['codons']['v']
-		vgerm = seq['codons']['v_germ']
-		for q, g in zip(vquery, vgerm):
-			nonsilent += _is_nonsilent_mutation(q, g)
-	if j:
-		jquery = seq['codons']['j']
-		jgerm = seq['codons']['j_germ']
-		for q, g in zip(jquery, jgerm):
-			nonsilent += _is_nonsilent_mutation(q, g)
-	return nonsilent
+    nonsilent = 0
+    if v:
+        vquery = seq['codons']['v']
+        vgerm = seq['codons']['v_germ']
+        for q, g in zip(vquery, vgerm):
+            nonsilent += _is_nonsilent_mutation(q, g)
+    if j:
+        jquery = seq['codons']['j']
+        jgerm = seq['codons']['j_germ']
+        for q, g in zip(jquery, jgerm):
+            nonsilent += _is_nonsilent_mutation(q, g)
+    return nonsilent
 
 
 def _is_silent_mutation(q, g):
-	if q == g:
-		return 0
-	if any(['-' in q, '-' in g]):
-		return 0
-	qaa = translate(q)
-	gaa = translate(g)
-	if qaa != gaa:
-		return 0
-	if q != g:
-		return 1
+    if q == g:
+        return 0
+    if any(['-' in q, '-' in g]):
+        return 0
+    qaa = translate(q)
+    gaa = translate(g)
+    if qaa != gaa:
+        return 0
+    if q != g:
+        return 1
 
 
 def _is_nonsilent_mutation(q, g):
-	if q == g:
-		return 0
-	if any(['-' in q, '-' in g]):
-		return 0
-	qaa = translate(q)
-	gaa = translate(g)
-	if qaa == gaa:
-		return 0
-	return 1
+    if q == g:
+        return 0
+    if any(['-' in q, '-' in g]):
+        return 0
+    qaa = translate(q)
+    gaa = translate(g)
+    if qaa == gaa:
+        return 0
+    return 1
