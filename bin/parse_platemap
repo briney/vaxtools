@@ -34,7 +34,7 @@ from vaxtools.scPCR import platemap
 
 
 if __name__ == '__main__':
-	args = platemap.parse_args()
-	logfile = args.log if args.log else os.path.join(os.path.dirname(args.output), 'demultiplex.log')
-	log.setup_logging(logfile, print_log_location=False, debug=args.debug)
-	platemap.run_standalone(args)
+    args = platemap.parse_args()
+    logfile = args.log if args.log else os.path.join(os.path.dirname(args.output), 'demultiplex.log')
+    log.setup_logging(logfile, print_log_location=False, debug=args.debug)
+    platemap.run_standalone(args)
