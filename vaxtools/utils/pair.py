@@ -24,6 +24,8 @@
 
 
 import copy
+import sys
+import traceback
 
 from Bio.Seq import Seq
 from Bio.Alphabet import generic_dna
@@ -201,10 +203,14 @@ class Pair(object):
 
     def refine(self, heavy=True, light=True, species='human'):
         for seq in [s for s in [self.heavy, self.light] if s is not None]:
-            self.remove_ambigs(seq)
-            self._refine_v(seq, species)
-            self._refine_j(seq, species)
-            self._retranslate(seq)
+        	try:
+	            self.remove_ambigs(seq)
+	            self._refine_v(seq, species)
+	            self._refine_j(seq, species)
+	            self._retranslate(seq)
+	        except:
+	        	print('REFINEMENT FAILED: {}, {} chain'.format(s['seq_id'], s['chain']))
+	        	print(traceback.format_exception_only(sys.exc_type, sys.exc_value))
 
 
     @staticmethod

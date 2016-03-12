@@ -445,7 +445,7 @@ def get_cluster_centroid(cluster, seq_db):
         seq_db.execute('''SELECT seqs.seq_id, seqs.vdj_nt
                           FROM seqs
                           WHERE seqs.seq_id LIKE "{}"'''.format(centroid_id))
-        return seq_db.fetchone()
+        return seq_db.fetchone()[1]
     # return None
 
 

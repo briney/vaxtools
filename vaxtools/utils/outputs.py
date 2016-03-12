@@ -61,10 +61,14 @@ def _get_pair_metadata(p):
         seq = p.heavy
     else:
         seq = p.light
-    experiment = seq['experiment'] if 'experiment' in seq else ''
-    group = seq['group'] if 'group' in seq else ''
-    subject = seq['subject'] if 'subject' in seq else ''
-    timepoint = seq['timepoint'] if 'timepoint' in seq else ''
+    experiment = seq.get('experiment', '')
+    group = seq.get('group', '')
+    subject = seq.get('subject', '')
+    timepoint = seq.get('timepoint', '')
+    # experiment = seq['experiment'] if 'experiment' in seq else ''
+    # group = seq['group'] if 'group' in seq else ''
+    # subject = seq['subject'] if 'subject' in seq else ''
+    # timepoint = seq['timepoint'] if 'timepoint' in seq else ''
     return [experiment, group, subject, timepoint]
 
 
