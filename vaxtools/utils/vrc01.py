@@ -394,13 +394,13 @@ def vrc01_summary_output_part2(pairs, output_dir):
 
 def _get_sample(s):
     slist = []
-    if 'experiment' in s:
+    if 'experiment' in s.keys():
         slist.append(s['experiment'])
-    if 'group' in s:
+    if 'group' in s.keys():
         slist.append(s['group'])
-    if 'subject' in s:
+    if 'subject' in s.keys():
         slist.append(s['subject'])
-    if 'timepoint' in s:
+    if 'timepoint' in s.keys():
         slist.append(s['timepoint'])
     return '|'.join(slist)
 
@@ -509,11 +509,11 @@ def vrc01_summary_output_part5(pairs, output_dir):
 
 
 def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=True,
-                               vgene_only=True, chain='heavy', aa=True):
+                               vgene_only=True, chain='heavy', print_alignments=False):
     '''
     seqs should be an iterable of anything that abtools.utils.sequence.Sequence can handle
     '''
-    input_seqs = [Sequence(s, aa=aa) for s in seqs]
+    input_seqs = [Sequence([s['seq_id'], s['vdj_aa']]) for s in seqs]
     vrc01_seqs = []
     shared = []
     total = []
@@ -532,6 +532,8 @@ def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=T
     for s in input_seqs:
         alignment_seqs = [s] + vrc01_seqs + [glvrc01]
         aln = muscle(alignment_seqs)
+        if print_alignments:
+        	print(aln)
         aln_seq = [seq for seq in aln if seq.id == s.id][0]
         aln_gl = [seq for seq in aln if seq.id == glvrc01_name][0]
         aln_vrc01s = [seq for seq in aln if seq.id in vrc01_names]
@@ -562,7 +564,7 @@ def vrc01_class_mutation_positions(seqs, vrc01_class=True, minvrc01=True, min12a
                                    vgene_only=False, chain='heavy', aa=True, drop_gaps=True):
     data = []
     hiv_seqs = []
-    input_seqs = [Sequence(s, aa=aa) for s in seqs]
+    input_seqs = [Sequence([s['seq_id'], s['vdj_aa']]) for s in seqs]
     input_names = [s.id for s in input_seqs]
     if vrc01_class:
         hiv_seqs += get_vrc01_class_sequences(vgene_only=vgene_only)
