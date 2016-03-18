@@ -418,10 +418,10 @@ def parse_cluster_sizes(cluster_handle):
 
 
 def get_cluster_seq(cluster, seq_db, plate, well, temp_dir, raw_sequence_dir, consensus):
-    if raw_sequence_dir:
-        seqs = get_all_cluster_seqs(cluster, seq_db)
-        ofile = os.path.join(raw_sequence_dir, '{}-{}.fasta'.format(plate, well))
-        write_raw_binned_data(seqs, ofile)
+    # if raw_sequence_dir:
+    #     seqs = get_all_cluster_seqs(cluster, seq_db)
+    #     ofile = os.path.join(raw_sequence_dir, '{}-{}.fasta'.format(plate, well))
+    #     write_raw_binned_data(seqs, ofile)
     if consensus:
         return get_cluster_consensus(cluster, seq_db, temp_dir)
     return get_cluster_centroid(cluster, seq_db)
@@ -747,6 +747,10 @@ def main(args, logfile=None):
                 if len(bins[b]) < 25:
                     continue
                 print_bin_info(b)
+                if args.raw_sequence_dir is not None:
+                	rs_handle = open(os.path.join(args.raw_sequence_dir, '{}-{}_{}'.format(plate_name, b, chain)), 'write')
+                	rs_handle.write('\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in bins[b]]))
+                	rs_handle.close()
                 consentroid = cdhit_clustering(bins[b],
                                                b,
                                                plate_name,

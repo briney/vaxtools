@@ -121,11 +121,19 @@ class Pair(object):
     @property
     def vrc01_like(self):
         if self._vrc01_like is None:
-            self._vrc01_like = all([self.heavy['v_gene']['gene'] == 'IGHV1-2', self.light['cdr3_len'] == 5])
+        	if any([self.heavy is None, self.light is None]):
+        		self._vrc01_like = False
+        	else:
+	            self._vrc01_like = all([self.heavy['v_gene']['gene'] == 'IGHV1-2', self.light['cdr3_len'] == 5])
         return self._vrc01_like
 
     @property
     def name(self):
+        if self._name is None:
+            if self.heavy is not None:
+                self._name = self.heavy['seq_id']
+            elif self.light is not None:
+                self._name = self.light['seq_id']
         return self._name
 
     @name.setter
@@ -203,14 +211,14 @@ class Pair(object):
 
     def refine(self, heavy=True, light=True, species='human'):
         for seq in [s for s in [self.heavy, self.light] if s is not None]:
-        	try:
-	            self.remove_ambigs(seq)
-	            self._refine_v(seq, species)
-	            self._refine_j(seq, species)
-	            self._retranslate(seq)
-	        except:
-	        	print('REFINEMENT FAILED: {}, {} chain'.format(s['seq_id'], s['chain']))
-	        	print(traceback.format_exception_only(sys.exc_type, sys.exc_value))
+            try:
+                self.remove_ambigs(seq)
+                self._refine_v(seq, species)
+                self._refine_j(seq, species)
+                self._retranslate(seq)
+            except:
+                print('REFINEMENT FAILED: {}, {} chain'.format(s['seq_id'], s['chain']))
+                print(traceback.format_exception_only(sys.exc_type, sys.exc_value))
 
 
     @staticmethod

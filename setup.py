@@ -21,7 +21,8 @@ config = {
     'packages': ['vaxtools'],
     'scripts': ['bin/scpcr_demultiplex',
                 'bin/abstar_import_upload',
-                'bin/parse_platemap'],
+                'bin/parse_platemap',
+                'bin/parse_barcodes'],
     'name': 'vaxtools',
     'include_package_data': True
 }
