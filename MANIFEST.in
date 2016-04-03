@@ -6,3 +6,4 @@ include vaxtools/scPCR/indexes/*
 include vaxtools/utils/*
 include vaxtools/hiv/*
 include vaxtools/hiv/env_sequences/*
+include vaxtools/mutation_simulation/*
