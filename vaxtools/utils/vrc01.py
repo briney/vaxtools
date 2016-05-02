@@ -37,6 +37,7 @@ import matplotlib
 matplotlib.use('Agg', warn=False)
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.ticker import AutoMinorLocator
 
 from abtools.sequence import Sequence
 from abtools.alignment import muscle
@@ -579,13 +580,14 @@ def vrc01_class_mutation_positions(seqs, vrc01_class=True, minvrc01=True, min12a
     aln_seqs = [seq for seq in aln if seq.id in input_names]
     aln_gl = [seq for seq in aln if seq.id == 'glVRC01'][0]
     aln_mins = [seq for seq in aln if seq.id in ['minVRC01', 'min12A21']]
-    aln_hiv = [seq for seq in aln if seq.id in vrc01_class_names]
+    aln_hiv = [seq for seq in aln if seq.id in all_hiv_names]
     for seq in aln_seqs:
         seq_data = []
         for i, (s, g) in enumerate(zip(str(seq.seq), str(aln_gl.seq))):
-            if g == '-' and s == '-':
+            # if g == '-' and s == '-':
+            if g == '-':
                 continue
-            min_residues = [seq[i] for seq in aln_min]
+            min_residues = [seq[i] for seq in aln_mins]
             vrc01_residues = [seq[i] for seq in aln_hiv]
             if s == '-':
                 seq_data.append(0)
@@ -593,17 +595,18 @@ def vrc01_class_mutation_positions(seqs, vrc01_class=True, minvrc01=True, min12a
                 seq_data.append(0)
             elif s != g and s in min_residues:
                 seq_data.append(2)
-            elif s != g and s in vrc01_muts:
+            elif s != g and s in vrc01_residues:
                 seq_data.append(3)
-            elif s != g and s not in vrc01_muts:
+            elif s != g and s not in vrc01_residues:
                 seq_data.append(1)
             else:
                 seq_data.append(0)
         data.append(seq_data)
-    return np.array(data)
+    return np.asarray(data)
 
 
-def pixel_plot(data, cmap, figfile=None, pad=2, labelsize=14, maxy_denom=30, maxx_denom=10):
+def pixel_plot(data, cmap, figfile=None, pad=2, labelsize=14, tight_layout=True,
+	maxy_denom=30, maxx_denom=10):
     '''
     ::data:: is the output from vrc01_class_mutation_positions()
     '''
@@ -616,6 +619,7 @@ def pixel_plot(data, cmap, figfile=None, pad=2, labelsize=14, maxy_denom=30, max
     ax.spines['left'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_color('k')
+    minorLocator = AutoMinorLocator(1)
     ax.xaxis.set_minor_locator(minorLocator)
     ticks = [26, 34, 50, 58, 99, 114]
     minor_ticks = [13, 30, 42, 54, 78.5, 106.5, 118]
@@ -633,7 +637,8 @@ def pixel_plot(data, cmap, figfile=None, pad=2, labelsize=14, maxy_denom=30, max
     ax.xaxis.set_tick_params(which='major', direction='out',
                              length=6, color='k', width=1.5, top='off')
     ax.tick_params(axis='y', labelsize=0)
-    plt.tight_layout()
+    if tight_layout:
+	    plt.tight_layout()
     if figfile is None:
         plt.show()
     else:

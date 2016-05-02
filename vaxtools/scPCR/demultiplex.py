@@ -274,7 +274,7 @@ def remove_sqlite_db(temp_dir):
 
 def cdhit_clustering(seqs, bin_id, plate_name, temp_dir, num_plate_seqs,
     minimum_well_size, minimum_well_size_denom, minimum_cluster_fraction,
-    raw_sequence_dir, alignment_pixel_dir, consensus, cdhit_threshold):
+    raw_sequence_dir, alignment_pixel_dir, consensus, cdhit_threshold, chain):
     logger.info('clustering...')
     seq_db = build_seq_db(seqs, temp_dir)
     infile = make_cdhit_input(seqs, temp_dir)
@@ -294,7 +294,8 @@ def cdhit_clustering(seqs, bin_id, plate_name, temp_dir, num_plate_seqs,
                                                    temp_dir,
                                                    raw_sequence_dir,
                                                    alignment_pixel_dir,
-                                                   consensus)
+                                                   consensus,
+                                                   chain)
     os.unlink(infile.name)
     os.unlink(os.path.join(temp_dir, 'log'))
     os.unlink(outfile)
@@ -371,7 +372,7 @@ def parse_centroids(centroid_handle, sizes=None):
 
 def parse_clusters(cluster_handle, seq_db, well, plate, num_plate_seqs,
     minimum_well_size, minimum_well_size_denom, minimum_cluster_fraction,
-    temp_dir, raw_sequence_dir, alignment_pixel_dir, consensus):
+    temp_dir, raw_sequence_dir, alignment_pixel_dir, consensus, chain):
     clusters = [c.split('\n') for c in cluster_handle.read().split('\n>')]
     cluster_lengths = [(len(c) - 1, c) for c in clusters]
     cluster_lengths.sort(key=lambda x: x[0], reverse=True)
@@ -397,7 +398,7 @@ def parse_clusters(cluster_handle, seq_db, well, plate, num_plate_seqs,
         cluster_seq = None
     if all([alignment_pixel_dir is not None, cluster_seq is not None]):
         logger.info('making alignment pixel...')
-        ffile = os.path.join(alignment_pixel_dir, '{}-{}.png'.format(plate, well))
+        ffile = os.path.join(alignment_pixel_dir, '{}-{}_{}.png'.format(plate, well, chain))
         try:
             pixel.make_pixel(get_all_cluster_seqs(biggest_cluster, seq_db),
                             ffile,
@@ -418,10 +419,10 @@ def parse_cluster_sizes(cluster_handle):
 
 
 def get_cluster_seq(cluster, seq_db, plate, well, temp_dir, raw_sequence_dir, consensus):
-    if raw_sequence_dir:
-        seqs = get_all_cluster_seqs(cluster, seq_db)
-        ofile = os.path.join(raw_sequence_dir, '{}-{}.fasta'.format(plate, well))
-        write_raw_binned_data(seqs, ofile)
+    # if raw_sequence_dir:
+    #     seqs = get_all_cluster_seqs(cluster, seq_db)
+    #     ofile = os.path.join(raw_sequence_dir, '{}-{}.fasta'.format(plate, well))
+    #     write_raw_binned_data(seqs, ofile)
     if consensus:
         return get_cluster_consensus(cluster, seq_db, temp_dir)
     return get_cluster_centroid(cluster, seq_db)
@@ -747,6 +748,10 @@ def main(args, logfile=None):
                 if len(bins[b]) < 25:
                     continue
                 print_bin_info(b)
+                if args.raw_sequence_dir is not None:
+                	rs_handle = open(os.path.join(args.raw_sequence_dir, '{}-{}_{}'.format(plate_name, b, chain)), 'write')
+                	rs_handle.write('\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in bins[b]]))
+                	rs_handle.close()
                 consentroid = cdhit_clustering(bins[b],
                                                b,
                                                plate_name,
@@ -758,7 +763,8 @@ def main(args, logfile=None):
                                                args.raw_sequence_dir,
                                                args.alignment_pixel_dir,
                                                args.consensus,
-                                               args.cdhit_threshold)
+                                               args.cdhit_threshold,
+                                               chain)
                 if consentroid:
                     consentroid_name = '{}-{}'.format(plate_name, b)
                     plate_seqs.append((consentroid_name, consentroid))

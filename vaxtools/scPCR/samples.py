@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # filename: samples.py
 
 #
@@ -55,7 +55,7 @@ def unset_sample_metadata(db, collection, subject=False, group=False,
 
 
 
-def assign_subjects(db, collection, platemap_dir):
+def assign_subjects(db, collection, samplemap):
     '''
     Assigns subject names (updates the provided MongoDB db/collection with
     a 'subject' field).
@@ -64,28 +64,25 @@ def assign_subjects(db, collection, platemap_dir):
         ::db:: is a pymongo database object, containing the sequences
             to be updated
         ::collection:: is a MongoDB collection name, as a string
-        ::platemap_dir:: is the directory containing one or more platemap files
-            (output from vaxtools.scpcr.platemap)
+        ::samplemap:: is the samplemap file
     '''
     mongodb.remove_padding(db, collection)
-    subjects = parse_samplemaps(platemap_dir)
+    subjects = parse_samplemap(samplemap)
     update_subjects(db, collection, subjects)
 
 
-def parse_samplemaps(platemap_dir):
+def parse_samplemap(samplemap):
     subjects = {}
-    for platemap in list_files(platemap_dir):
-        plate = os.path.basename(platemap)
-        with open(platemap) as f:
-            for line in f:
-                sline = line.strip().split()
-                if len(sline) >= 2:
-                    seq_id = sline[0]
-                    subject = sline[1]
-                    # platewell = '{}-{}'.format(plate, well)
-                    if subject not in subjects:
-                        subjects[subject] = []
-                    subjects[subject].append(seq_id)
+    with open(samplemap) as f:
+        for line in f:
+            sline = line.strip().split()
+            if len(sline) >= 2:
+                seq_id = sline[0]
+                subject = sline[1]
+                # platewell = '{}-{}'.format(plate, well)
+                if subject not in subjects:
+                    subjects[subject] = []
+                subjects[subject].append(seq_id)
     return subjects
 
 

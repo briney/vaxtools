@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# filename: parse_platemap
+# filename: parse_plate_barcodes
 
 
 #
@@ -30,11 +30,11 @@ import warnings
 
 from abtools import log
 
-from vaxtools.scPCR import platemap
+from vaxtools.scPCR import barcodes
 
 
 if __name__ == '__main__':
-    args = platemap.parse_args()
-    logfile = args.log if args.log else os.path.join(os.path.dirname(args.output), 'parse_platemap.log')
+    args = barcodes.parse_args()
+    logfile = args.log if args.log else os.path.join(os.path.dirname(args.output), 'parse_barcodes.log')
     log.setup_logging(logfile, print_log_location=False, debug=args.debug)
-    platemap.run_standalone(args)
+    barcodes.run_standalone(args)
