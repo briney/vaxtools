@@ -24,21 +24,31 @@
 
 import colorsys
 from collections import Counter
+import math
 import os
 import random
+import string
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 
-import ete2
+# import ete2
+import ete3 as ete2
 
 from abstar import run as run_abstar
 
 from abtools.alignment import muscle
+from abtools.cluster import cluster
 from abtools.phylogeny.utils import tree
 from abtools.sequence import Sequence
 from abtools.utils.decorators import lazy_property
 
 from vaxtools.utils.pair import Pair
+
+# imports to overload ete2's SequenceItem class
+from PyQt4.QtGui import (QGraphicsRectItem,
+                         QPen, QColor, QBrush, QFont)
+from PyQt4.QtCore import Qt
 
 
 class Lineage(object):
@@ -59,6 +69,9 @@ class Lineage(object):
 
     just_pairs: a list containing all lineage Pair objects that have both heavy
         and light chains.
+
+    verified_pairs: a list containing all lineage Pair objects that contain a
+        verified heavy/light pair.
 
     heavies: a list of all lineage Pair objects with a heavy chain (whether or not
         they also have a light chain)
@@ -97,7 +110,7 @@ class Lineage(object):
 
     Lineage.phylogeny()
 
-        inputs
+        Inputs
         ------
         project_dir: directory for alignment, tree and figure files (required)
 
@@ -164,6 +177,15 @@ class Lineage(object):
         return [p for p in self.pairs if p.is_pair]
 
     @lazy_property
+    def verified_pairs(self):
+        '''
+        Returns all lineage Pair objects that contain verified pairings.
+        '''
+        if not hasattr(self.just_pairs[0], 'verified'):
+            self.verify_light_chains()
+        return [p for p in self.just_pairs if p.verified]
+
+    @lazy_property
     def heavies(self):
         '''
         Returns all lineage Pair objects that contain a heavy chain.
@@ -180,7 +202,7 @@ class Lineage(object):
     @lazy_property
     def uca(self):
         '''
-        Computes the unmutated common ancestor (UCA) of the lineage.
+        Calculates the unmutated common ancestor (UCA) of the lineage.
 
         The UCA is computed by using the germline V(D)J genes as well
         as the N-addition regions of the least mutated sequence.
@@ -221,6 +243,24 @@ class Lineage(object):
             return list(set([g for g in _timepoints if g is not None]))
         return []
 
+    @lazy_property
+    def has_insertion(self):
+        ins = ['v_ins' in p.heavy for p in self.heavies]
+        ins += ['v_ins' in p.light for p in self.lights]
+        return True if any(ins) else False
+
+    @lazy_property
+    def has_deletion(self):
+        dels = ['v_del' in p.heavy for p in self.heavies]
+        dels += ['v_del' in p.light for p in self.lights]
+        return True if any(dels) else False
+
+    @lazy_property
+    def has_indel(self):
+        if any([self.has_insertion, self.has_deletion]):
+            return True
+        return False
+
 
     def size(self, pairs_only=False):
         '''
@@ -240,7 +280,28 @@ class Lineage(object):
             return len(self.heavies)
 
 
-    def dot_alignment(self, seq_field='vdj_nt', name_field='seq_id', chain='heavy'):
+    def verify_light_chains(self, threshold=0.9):
+        '''
+        Clusters the light chains to identify potentially spurious (non-lineage)
+        pairings. Following clustering, all pairs in the largest light chain
+        cluster are assumed to be correctly paired. For each of those pairs,
+        the <verified> attribute is set to True. For pairs not in the largest
+        light chain cluster, the <verified> attribute is set to False.
+
+        Inputs (optional)
+        -----------------
+        threshold: CD-HIT clustering threshold. Default is 0.9.
+        '''
+        lseqs = [l.light for l in self.lights]
+        clusters = cluster(lseqs, threshold=threshold)
+        clusters.sort(key=lambda x: x.size, reverse=True)
+        verified_ids = clusters[0].ids
+        for p in self.lights:
+            p.verified = True if p.name in verified_ids else False
+
+
+    def dot_alignment(self, seq_field='vdj_nt', name_field='seq_id',
+            chain='heavy', uca_name='UCA', as_fasta=False, just_alignment=False):
         '''
         Returns a multiple sequence alignment of all lineage sequence with the UCA
         where matches to the UCA are shown as dots and mismatches are shown as the
@@ -268,15 +329,9 @@ class Lineage(object):
                 self.uca.light[name_field] = self.uca.light['seq_id']
             sequences.append(self.uca.light)
             seqs = [(s[name_field], s[seq_field]) for s in sequences]
-        # if 'nt' in seq_field:
-        #     gap_open = -44
-        #     gap_extend = -1
-        # else:
-        #     gap_open = gap_extend = None
-        # aln = muscle(seqs, gap_open=gap_open, gap_extend=gap_extend)
         aln = muscle(seqs)
         g_aln = [a for a in aln if a.id == 'UCA'][0]
-        dots = [('UCA', str(g_aln.seq)), ]
+        dots = [(uca_name, str(g_aln.seq)), ]
         for seq in [a for a in aln if a.id != 'UCA']:
             s_aln = ''
             for g, q in zip(str(g_aln.seq), str(seq.seq)):
@@ -287,19 +342,52 @@ class Lineage(object):
                 else:
                     s_aln += q
             dots.append((seq.id, s_aln))
+        if just_alignment:
+                return [d[1] for d in dots]
         name_len = max([len(d[0]) for d in dots]) + 2
         dot_aln = []
         for d in dots:
-            spaces = name_len - len(d[0])
-            dot_aln.append(d[0] + ' ' * spaces + d[1])
+            if as_fasta:
+                dot_aln.append('>{}\n{}'.format(d[0], d[1]))
+            else:
+                spaces = name_len - len(d[0])
+                dot_aln.append(d[0] + ' ' * spaces + d[1])
         return '\n'.join(dot_aln)
+
+
+    def pixel(self, seq_field='vdj_nt', figfile=None):
+        if 'aa' in seq_field:
+            colors = _aa_pixel_colors
+        else:
+            colors = _nt_pixel_colors
+        ckeys = sorted(colors.keys())
+        res_vals = {r: v for r, v in zip(ckeys, range(len(ckeys)))}
+        cmap_colors = [colors[res] for res in ckeys]
+        cmap = ListedColormap(cmap_colors)
+        data = []
+        dot_alignment = self.dot_alignment(seq_field=seq_field, just_alignment=True)
+        for dot in dot_alignment:
+            data.append([res_vals.get(res.upper(), len(res_vals) + 1) for res in dot])
+        mag = (int(math.log10(len(data[0]))) + int(math.log10(len(data)))) / 2
+        x_dim = len(data[0]) / 10**mag
+        y_dim = len(data) / 10**mag
+        plt.figure(figsize=(x_dim, y_dim), dpi=100)
+        plt.imshow(data, cmap=cmap, interpolation='none')
+        plt.axis('off')
+        if figfile is not None:
+            plt.savefig(figfile, bbox_inches='tight', dpi=400)
+            plt.close()
+        else:
+            plt.show()
 
 
     def phylogeny(self, project_dir, aln_file=None, tree_file=None, aa=False,
             root=None, colors=None, color_function=None, orders=None, order_function=None,
             chain='heavy', filter_function=None, just_pairs=False,
             scale=None, branch_vert_margin=None, fontsize=12, show_names=True,
-            mirror=False, min_order_fraction=0.1, figname_prefix=None, figname_suffix=None):
+            mirror=False, min_order_fraction=0.1, figname_prefix=None, figname_suffix=None,
+            linked_alignment=None, alignment_fontsize=11, scale_factor=1,
+            alignment_height=50, alignment_width=50, compact_alignment=False, linewidth=1.0):
         '''
         Generates a lineage phylogeny figure.
 
@@ -399,7 +487,10 @@ class Lineage(object):
         fig_file = os.path.join(project_dir, '{}{}{}.pdf'.format(prefix, self.name, suffix))
         self._make_tree_figure(tree_file, fig_file, colors, orders,
             show_names=show_names, branch_vert_margin=branch_vert_margin, scale=scale,
-            tree_orientation=orientation, fontsize=fontsize, min_order_fraction=min_order_fraction)
+            tree_orientation=orientation, fontsize=fontsize, min_order_fraction=min_order_fraction,
+            linked_alignment=linked_alignment, alignment_fontsize=alignment_fontsize,
+            alignment_height=alignment_height, alignment_width=alignment_width,
+            compact_alignment=compact_alignment, scale_factor=scale_factor, linewidth=linewidth)
 
 
     def _get_metadata(self, field):
@@ -428,12 +519,18 @@ class Lineage(object):
 
 
     def _make_tree_figure(self, tree, fig, colors, orders, scale=None, branch_vert_margin=None,
-            fontsize=12, show_names=True, tree_orientation=0, min_order_fraction=0.1):
+            fontsize=12, show_names=True, tree_orientation=0, min_order_fraction=0.1,
+            linked_alignment=None, alignment_fontsize=11, alignment_height=50, alignment_width=50,
+            compact_alignment=False, scale_factor=1, linewidth=1):
         if show_names is True:
             show_names = [p.name for p in self.pairs]
         elif show_names is False:
             show_names = []
-        t = ete2.Tree(tree)
+        if linked_alignment is not None:
+            t = ete2.PhyloTree(tree, alignment=linked_alignment, alg_format='fasta')
+            ete2.faces.SequenceItem = MySequenceItem
+        else:
+            t = ete2.Tree(tree)
         t.set_outgroup(t&"root")
         # style the nodes
         for node in t.traverse():
@@ -446,22 +543,45 @@ class Lineage(object):
                         break
             else:
                 color = colors.get(node.name, '#000000')
+            if linked_alignment is not None:
+                node.add_feature('aln_fontsize', alignment_fontsize)
+                node.add_feature('aln_height', alignment_height)
+                node.add_feature('aln_width', alignment_width)
+                node.add_feature('fontsize', fontsize)
+                node.add_feature('format', 'seq')
+                node.add_feature('scale_factor', scale_factor)
             style = ete2.NodeStyle()
             style['size'] = 0
-            style['vt_line_width'] = 1.0
-            style['hz_line_width'] = 1.0
+            style['vt_line_width'] = float(linewidth)
+            style['hz_line_width'] = float(linewidth)
             style['vt_line_color'] = color
             style['hz_line_color'] = color
             style['vt_line_type'] = 0
             style['hz_line_type'] = 0
+            # else:
+            #     style['size'] = 0
+            #     style['vt_line_width'] = float(linewidth)
+            #     style['hz_line_width'] = float(linewidth)
+            #     style['vt_line_color'] = color
+            #     style['hz_line_color'] = color
+            #     style['vt_line_type'] = 0
+            #     style['hz_line_type'] = 0
             if node.name in show_names:
                 tf = ete2.TextFace(node.name)
                 tf.fsize = fontsize
                 node.add_face(tf, column=0)
                 style['fgcolor'] = '#000000'
+            # else:
+            #     if hasattr(node, "sequence"):
+            #         node.add_face(ete2.SeqMotifFace(seq=node.sequence,
+            #                                         seqtype="aa",
+            #                                         height=50,
+            #                                         seq_format="seq"), column=0, position="aligned")
             node.set_style(style)
         t.dist = 0
         ts = ete2.TreeStyle()
+        if linked_alignment is not None:
+            ts.layout_fn = self._phyloalignment_layout_function
         ts.orientation = tree_orientation
         ts.show_leaf_name = False
         if scale is not None:
@@ -475,6 +595,61 @@ class Lineage(object):
         t.render(fig, tree_style=ts)
 
 
+    def _phyloalignment_layout_function(self, node):
+        leaf_color = "#000000"
+        node.img_style["shape"] = "circle"
+        if hasattr(node, "evoltype"):
+            if node.evoltype == 'D':
+                node.img_style["fgcolor"] = "#FF0000"
+                node.img_style["hz_line_color"] = "#FF0000"
+                node.img_style["vt_line_color"] = "#FF0000"
+            elif node.evoltype == 'S':
+                node.img_style["fgcolor"] = "#1d176e"
+                node.img_style["hz_line_color"] = "#1d176e"
+                node.img_style["vt_line_color"] = "#1d176e"
+            elif node.evoltype == 'L':
+                node.img_style["fgcolor"] = "#777777"
+                node.img_style["vt_line_color"] = "#777777"
+                node.img_style["hz_line_color"] = "#777777"
+                node.img_style["hz_line_type"] = 1
+                node.img_style["vt_line_type"] = 1
+                leaf_color = "#777777"
+
+        if node.is_leaf():
+            node.img_style["shape"] = "square"
+            node.img_style["size"] = 0
+            if hasattr(node, "sequence"):
+                if node.name == 'root':
+                    bg_colors, fg_colors = self._get_phyloalignment_colors(root=True)
+                    node.img_style["fgcolor"] = '#d3d3d3'
+                    SequenceFace = ete2.faces.SeqMotifFace(node.sequence, seqtype="aa", seq_format='seq',
+                        height=node.aln_height, width=node.aln_width, scale_factor=node.scale_factor)
+                    ete2.faces.add_face_to_node(SequenceFace, node, 1, aligned=True)
+                    node.name = ' UCA  '
+                    ete2.faces.add_face_to_node(ete2.faces.AttrFace("name", "Arial", node.fontsize, '#000000', None),
+                                                node, 0)
+                else:
+                    bg_colors, fg_colors = self._get_phyloalignment_colors()
+                    node.img_style["fgcolor"] = '#000000'
+                    SequenceFace = ete2.faces.SeqMotifFace(node.sequence, seqtype="aa", seq_format='seq',
+                        height=node.aln_height, width=node.aln_width, scale_factor=node.scale_factor)
+                    ete2.faces.add_face_to_node(SequenceFace, node, 1, aligned=True)
+        else:
+            node.img_style["size"] = 0
+
+
+    def _get_phyloalignment_colors(self, root=False):
+        bg = '#000000'
+        fg = '#FFFFFF'
+        bg_colors = {c: bg for c in string.ascii_uppercase}
+        bg_colors['.'] = '#FFFFFF'
+        bg_colors['-'] = '#d3d3d3'
+        fg_colors = {c: fg for c in string.ascii_uppercase}
+        fg_colors['.'] = '#000000'
+        fg_colors['-'] = '#000000'
+        return bg_colors, fg_colors
+
+
     def _calculate_uca(self, paired_only=False):
         if paired_only:
             heavies = self.just_pairs
@@ -485,13 +660,13 @@ class Lineage(object):
         # heavy chain UCA
         if len(heavies) >= 1:
             lmhc = sorted(heavies, key=lambda x: x.heavy['nt_identity']['v'], reverse=True)[0].heavy
-            hc_uca = run_abstar(('UCA', lmhc['vdj_germ_nt']))
+            hc_uca = run_abstar(('UCA', lmhc['vdj_germ_nt']), isotype=False)
         else:
             hc_uca = None
         # light chain UCA
         if len(lights) >= 1:
             lmlc = sorted(lights, key=lambda x: x.light['nt_identity']['v'], reverse=True)[0].light
-            lc_uca = run_abstar(('UCA', lmlc['vdj_germ_nt']))
+            lc_uca = run_abstar(('UCA', lmlc['vdj_germ_nt']), isotype=False)
         else:
             lc_uca = None
         return Pair([uca for uca in [hc_uca, lc_uca] if uca is not None])
@@ -554,7 +729,7 @@ class Lineage(object):
         return fmap.get(field.lower(), None)
 
 
-def donut(lineages, figfile=None, pairs_only=False, singleton_color='lightgrey', shuffle_colors=False, seed=1234):
+def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, singleton_color='lightgrey', shuffle_colors=False, seed=1234):
     _colors = _get_donut_colors(lineages, singleton_color, shuffle_colors, seed)
     for l, c in zip(lineages, _colors):
         l.color = c
@@ -564,7 +739,9 @@ def donut(lineages, figfile=None, pairs_only=False, singleton_color='lightgrey',
     lineage_sizes = [l.size(pairs_only) for l in lineages if l.size(pairs_only) > 1] + [singletons]
     colors = [l.color for l in lineages if l.size(pairs_only) > 1] + [singleton_color]
 
-    fig, ax = plt.subplots()
+    fig = plt.figure(figsize=figsize)
+    ax = plt.gca()
+    # fig, ax = plt.subplots()
     ax.axis('equal')
     width = 0.55
     kwargs = dict(colors=colors, startangle=90)
@@ -607,3 +784,175 @@ def group_lineages(pairs, just_pairs=False):
                     lineages[l] = []
                 lineages[l].append(p)
     return [Lineage(v) for v in lineages.values()]
+
+
+
+
+
+
+class MySequenceItem(QGraphicsRectItem):
+    def __init__(self, seq, seqtype="aa", poswidth=1, posheight=10,
+                 draw_text=False):
+        QGraphicsRectItem.__init__(self)
+        self.seq = seq
+        self.seqtype = seqtype
+        self.poswidth = poswidth
+        self.posheight = posheight
+        if draw_text:
+            self.poswidth = poswidth
+        self.draw_text = draw_text
+        if seqtype == "aa":
+            self.fg = _aafgcolors
+            self.bg = _aabgcolors
+        elif seqtype == "nt":
+            self.fg = _ntfgcolors
+            self.bg = _ntbgcolors
+        self.setRect(0, 0, len(seq) * poswidth, posheight)
+
+    def paint(self, p, option, widget):
+        x, y = 0, 0
+        qfont = QFont("Courier")
+        current_pixel = 0
+        blackPen = QPen(QColor("black"))
+        for letter in self.seq:
+            if x >= current_pixel:
+                if self.draw_text and self.poswidth >= 5:
+                    br = QBrush(QColor(self.bg.get(letter, "white")))
+                    p.setPen(blackPen)
+                    p.fillRect(x, 0, self.poswidth, self.posheight, br)
+                    qfont.setPixelSize(min(self.posheight, self.poswidth))
+                    p.setFont(qfont)
+                    p.setBrush(QBrush(QColor("black")))
+                    p.drawText(x, 0, self.poswidth, self.posheight,
+                               Qt.AlignCenter | Qt.AlignVCenter,
+                               letter)
+                elif letter == "-" or letter == ".":
+                    p.setPen(blackPen)
+                    p.drawLine(x, self.posheight / 2, x + self.poswidth, self.posheight / 2)
+
+                else:
+                    br = QBrush(QColor(self.bg.get(letter, "white")))
+                    p.fillRect(x, 0, max(1, self.poswidth), self.posheight, br)
+                    # p.setPen(QPen(QColor(self.bg.get(letter, "black"))))
+                    # p.drawLine(x, 0, x, self.posheight)
+                current_pixel = int(x)
+            x += self.poswidth
+
+_aafgcolors = {
+    'A': "#000000",
+    'R': "#000000",
+    'N': "#000000",
+    'D': "#000000",
+    'C': "#000000",
+    'Q': "#000000",
+    'E': "#000000",
+    'G': "#000000",
+    'H': "#000000",
+    'I': "#000000",
+    'L': "#000000",
+    'K': "#000000",
+    'M': "#000000",
+    'F': "#000000",
+    'P': "#000000",
+    'S': "#000000",
+    'T': "#000000",
+    'W': "#000000",
+    'Y': "#000000",
+    'V': "#000000",
+    'B': "#000000",
+    'Z': "#000000",
+    'X': "#000000",
+    '.': "#000000",
+    '-': "#000000",
+}
+
+_aabgcolors = {
+    'A': "#C8C8C8",
+    'R': "#145AFF",
+    'N': "#00DCDC",
+    'D': "#E60A0A",
+    'C': "#E6E600",
+    'Q': "#00DCDC",
+    'E': "#E60A0A",
+    'G': "#EBEBEB",
+    'H': "#8282D2",
+    'I': "#0F820F",
+    'L': "#0F820F",
+    'K': "#145AFF",
+    'M': "#E6E600",
+    'F': "#3232AA",
+    'P': "#DC9682",
+    'S': "#FA9600",
+    'T': "#FA9600",
+    'W': "#B45AB4",
+    'Y': "#3232AA",
+    'V': "#0F820F",
+    'B': "#FF69B4",
+    'Z': "#FF69B4",
+    'X': "#BEA06E",
+    '.': "#FFFFFF",
+    '-': "#FFFFFF",
+}
+
+_aa_pixel_colors = {
+    'A': "#C8C8C8",
+    'R': "#145AFF",
+    'N': "#00DCDC",
+    'D': "#E60A0A",
+    'C': "#E6E600",
+    'Q': "#00DCDC",
+    'E': "#E60A0A",
+    'G': "#EBEBEB",
+    'H': "#8282D2",
+    'I': "#0F820F",
+    'L': "#0F820F",
+    'K': "#145AFF",
+    'M': "#E6E600",
+    'F': "#3232AA",
+    'P': "#DC9682",
+    'S': "#FA9600",
+    'T': "#FA9600",
+    'W': "#B45AB4",
+    'Y': "#3232AA",
+    'V': "#0F820F",
+    'B': "#FF69B4",
+    'Z': "#FF69B4",
+    'X': "#BEA06E",
+    '.': "#F2F2F2",
+    '-': "#FFFFFF",
+}
+
+_ntfgcolors = {
+    'A': '#000000',
+    'G': '#000000',
+    'I': '#000000',
+    'C': '#000000',
+    'T': '#000000',
+    'U': '#000000',
+    '.': "#000000",
+    '-': "#000000",
+    ' ': "#000000"
+}
+
+_ntbgcolors = {
+    'A': '#A0A0FF',
+    'G': '#FF7070',
+    'I': '#80FFFF',
+    'C': '#FF8C4B',
+    'T': '#A0FFA0',
+    'U': '#FF8080',
+    '.': "#FFFFFF",
+    '-': "#FFFFFF",
+    ' ': "#FFFFFF"
+}
+
+_nt_pixel_colors = {
+    'A': '#E12427',
+    'C': '#3B7FB6',
+    'G': '#63BE7A',
+    'T': '#E1E383',
+    # 'U': '#E1E383',
+    '.': "#F2F2F2",
+    '-': "#FFFFFF",
+    # ' ': "#FFFFFF"
+}
