@@ -676,7 +676,7 @@ def write_raw_binned_data(seqs, ofile):
 
 def write_output(seqs, output_file):
     seq_string = '\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in seqs])
-    open(output_file, 'a').write(seq_string)
+    open(output_file, 'a').write(seq_string + '\n')
 
 
 ################
