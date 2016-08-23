@@ -510,7 +510,8 @@ def vrc01_summary_output_part5(pairs, output_dir):
 
 
 def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=True,
-                               vgene_only=True, chain='heavy', print_alignments=False):
+                               vgene_only=True, chain='heavy', print_alignments=False,
+                               only_include=None):
     '''
     seqs should be an iterable of anything that abtools.utils.sequence.Sequence can handle
     '''
@@ -520,7 +521,7 @@ def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=T
     total = []
     # get VRC01-class sequences
     if vrc01_class:
-        vrc01_seqs += get_vrc01_class_sequences(chain=chain, vgene_only=vgene_only)
+        vrc01_seqs += get_vrc01_class_sequences(chain=chain, vgene_only=vgene_only, only_include=only_include)
     if minvrc01:
         vrc01_seqs.append(get_minvrc01_sequence(vgene_only=vgene_only))
     if min12a21:
@@ -534,7 +535,7 @@ def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=T
         alignment_seqs = [s] + vrc01_seqs + [glvrc01]
         aln = muscle(alignment_seqs)
         if print_alignments:
-        	print(aln)
+            print(aln)
         aln_seq = [seq for seq in aln if seq.id == s.id][0]
         aln_gl = [seq for seq in aln if seq.id == glvrc01_name][0]
         aln_vrc01s = [seq for seq in aln if seq.id in vrc01_names]
@@ -606,7 +607,7 @@ def vrc01_class_mutation_positions(seqs, vrc01_class=True, minvrc01=True, min12a
 
 
 def pixel_plot(data, cmap, figfile=None, pad=2, labelsize=14, tight_layout=True,
-	maxy_denom=30, maxx_denom=10):
+    maxy_denom=30, maxx_denom=10):
     '''
     ::data:: is the output from vrc01_class_mutation_positions()
     '''
@@ -638,7 +639,7 @@ def pixel_plot(data, cmap, figfile=None, pad=2, labelsize=14, tight_layout=True,
                              length=6, color='k', width=1.5, top='off')
     ax.tick_params(axis='y', labelsize=0)
     if tight_layout:
-	    plt.tight_layout()
+        plt.tight_layout()
     if figfile is None:
         plt.show()
     else:
@@ -653,7 +654,7 @@ def get_vrc01_germline_sequence(vgene_only=True):
     return Sequence(gl_vrc01)
 
 
-def get_vrc01_class_sequences(chain='heavy', vgene_only=True):
+def get_vrc01_class_sequences(chain='heavy', vgene_only=True, only_include=None):
     if vgene_only:
         heavy = [('VRC01', 'QVQLVQSGGQMKKPGESMRISCRASGYEFIDCTLNWIRLAPGKRPEWMGWLKPRGGAVNYARPLQGRVTMTRDVYSDTAFLELRSLTVDDTAVYFCTR'),
                  ('PGV04', 'QVQLVQSGSGVKKPGASVRVSCWTSEDIFERTELIHWVRQAPGQGLEWIGWVKTVTGAVNFGSPDFRQRVSLTRDRDLFTAHMDIRGLTQGDTATYFCAR'),
@@ -671,6 +672,10 @@ def get_vrc01_class_sequences(chain='heavy', vgene_only=True):
                  ('PGV20', 'QVHLMQSGTEMKKPGASVRVTCQTSGYTFSDYFIHWLRQVPGRGFEWMGWMNPQWGQVNYARTFQGRVTMTRDVYREVAYLDLRSLTFADTAVYFCARRMRSQDREWDFQHWGQGTRIIVSS')]
         light = []
     seqs = heavy if chain == 'heavy' else light
+    if only_include is not None:
+        if type(only_include) in [str, unicode]:
+            only_include = [only_include, ]
+        seqs = [s for s in seqs if s[0] in only_include]
     return [Sequence(s) for s in seqs]
 
 
@@ -723,7 +728,7 @@ def shared_mutation_kde_plot(xs, ys, cmaps, figfile=None, figsize=(8, 8), n_leve
 
 def shared_mutation_2dhist_plot(x, y, cmap, figfile=None, figsize=None, figsize_denom=4, n_levels=10, alpha=1.0, x_lim=None, y_lim=None,
                                 y_label='VRC01-class mutations', x_label='Total amino acid mutations', labelsize=14,
-                                tick_labelsize=12, pad=-4):
+                                tick_labelsize=12, pad=-4, show_values=False):
     # adjust the inputs to make them iterable
     if type(x[0]) in [int, float, np.int64, np.float64]:
         x = [x]
@@ -765,14 +770,20 @@ def shared_mutation_2dhist_plot(x, y, cmap, figfile=None, figsize=None, figsize_
     for position in ['right', 'left', 'top', 'bottom']:
         ax.spines[position].set_visible(True)
         ax.spines[position].set_color('k')
-    # ax.spines['right'].set_visible(True)
-    # ax.spines['left'].set_visible(True)
-    # ax.spines['top'].set_visible(True)
-    # ax.spines['bottom'].set_visible(True)
-    # ax.spines['right'].set_color('k')
-    # ax.spines['left'].set_color('k')
-    # ax.spines['top'].set_color('k')
-    # ax.spines['bottom'].set_color('k')
+    # add values
+    if show_values:
+        _data = data[::-1]
+        max_val = float(np.amax(_data))
+        for y in range(_data.shape[0]):
+            for x in range(_data.shape[1]):
+                if _data[y, x] == 0:
+                    continue
+                color = 'w' if _data[y, x] / max_val >= 0.5 else 'k'
+                plt.text(x + 0.5, y + 0.5, str(int(_data[y, x])),
+                         color=color,
+                         horizontalalignment='center',
+                         verticalalignment='center')
+
     ax.tick_params(axis='x', labelsize=tick_labelsize)
     ax.tick_params(axis='y', labelsize=tick_labelsize)
     plt.ylabel(y_label, size=labelsize)

@@ -496,12 +496,12 @@ def chunker(l, size=900):
 ###############
 
 
-def parse_indexes(index, index_file, index_length):
+def get_indexes(index, index_file, index_length, plate_num):
     indexes = {}
     index_seqs = []
     # parse index sequences from file
     if index is not None:
-        index_file = get_builtin_index_file(index)
+        index_file = get_builtin_index_file(index, plate_num)
     with open(index_file) as f:
         for line in f:
             index_seqs.append(line.strip())
@@ -535,30 +535,36 @@ def parse_indexes(index, index_file, index_length):
     return indexes
 
 
-def get_builtin_index_file(index):
+def get_builtin_index_file(index, plate_num):
     mod_dir = os.path.dirname(os.path.abspath(__file__))
     index_dir = os.path.join(mod_dir, 'indexes')
+    index_lookup = {0: 'top-odd',
+                    1: 'top-even',
+                    2: 'bottom-odd',
+                    3: 'bottom-even'}
     index_files = {'top-odd': os.path.join(index_dir, 'topodd.txt'),
                    'top-even': os.path.join(index_dir, 'topeven.txt'),
                    'bottom-odd': os.path.join(index_dir, 'bottomodd.txt'),
                    'bottom-even': os.path.join(index_dir, 'bottomeven.txt'),
                    '384': os.path.join(index_dir, '384.txt')}
-    return index_files[index]
+    if index == '384':
+        i = index_lookup.get(plate_num, '384')
+    else:
+        i = index
+    return index_files[i]
 
 
-def parse_plate_map(platemap_file, wells):
-    well_names = []
-    well_map = {}
+def parse_plate_map(platemap_file):
+    plate_data = []
+    plate_map = {}
     with open(platemap_file) as f:
         for line in f:
-            well_names.append(line.strip().split())
-    if all([len(w) <= 1 for w in well_names]):
-        well_names = [(w, n[0]) for w, n in zip(wells, well_names) if n]
-    for wname in well_names:
-        if len(wname) == 1:
+            plate_data.append(line.strip('\n').split())
+    for pdata in plate_data:
+        if len(pdata) <= 1:
             continue
-        well_map[wname[0]] = wname[1]
-    return well_map
+        plate_map[pdata[0]] = [p if p.strip() != '' else None for p in pdata[1:]]
+    return plate_map
 
 
 def reverse_complement(seq):
@@ -670,7 +676,7 @@ def write_raw_binned_data(seqs, ofile):
 
 def write_output(seqs, output_file):
     seq_string = '\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in seqs])
-    open(output_file, 'w').write(seq_string)
+    open(output_file, 'a').write(seq_string)
 
 
 ################
@@ -706,11 +712,11 @@ def main(args, logfile=None):
         raise RuntimeError(err)
     log_options(args, logfile=logfile)
     make_directories(args)
+    open(args.output, 'w').write('')
     db = mongodb.get_db(args.db, ip=args.ip, port=args.port,
                       user=args.user, password=args.password)
-    indexes = parse_indexes(args.index, args.index_file, args.index_length)
-    plate_map = parse_plate_map(args.plate_map, sorted(indexes.values()))
-    all_seqs = []
+    plate_map = parse_plate_map(args.plate_map)
+    # all_seqs = []
     collections = mongodb.get_collections(db, args.collection,
         prefix=args.collection_prefix, suffix=args.collection_suffix)
     for collection in collections:
@@ -718,59 +724,64 @@ def main(args, logfile=None):
             logger.info('\n\n{} was not found in the supplied plate map file.'.format(
                 collection))
             continue
-        plate_name = plate_map[collection]
-        print_plate_info(plate_name, collection)
-        for chain in ['heavy', 'kappa', 'lambda']:
-            plate_seqs = []
-            logger.info('')
-            logger.info('Querying for {} chain sequences'.format(chain))
-            score_cutoff = args.score_cutoff_heavy if chain == 'heavy' else args.score_cutoff_light
-            sequences = get_sequences(db,
-                                      collection,
-                                      chain,
-                                      score_cutoff)
-            logger.info('QUERY RESULTS: {} {} chain sequences met the quality threshold'.format(
-                len(sequences), chain.lower()))
-            bins = bin_by_index(sequences,
-                                indexes,
-                                args.index_length,
-                                args.index_position,
-                                args.index_reverse_complement)
-            if args.minimum_well_size == 'relative':
-                min_well_size = int(len(sequences) / float(args.minimum_well_size_denom))
-            else:
-                min_well_size = int(args.minimum_well_size)
-            min_max_well_size = max(min_well_size, args.minimum_max_well_size)
-            if max([len(b) for b in bins.values()]) < int(min_max_well_size):
-                logger.info('The biggest well had fewer than {} sequences, so the plate was not processed'.format(min_max_well_size))
+        plate_names = plate_map[collection]
+        for plate_num, plate_name in enumerate(plate_names):
+            if plate_name is None:
                 continue
-            for b in sorted(bins.keys()):
-                if len(bins[b]) < 25:
+            print_plate_info(plate_name, collection)
+            indexes = get_indexes(args.index, args.index_file, args.index_length, plate_num)
+            for chain in ['heavy', 'kappa', 'lambda']:
+                plate_seqs = []
+                logger.info('')
+                logger.info('Querying for {} chain sequences'.format(chain))
+                score_cutoff = args.score_cutoff_heavy if chain == 'heavy' else args.score_cutoff_light
+                sequences = get_sequences(db,
+                                          collection,
+                                          chain,
+                                          score_cutoff)
+                logger.info('QUERY RESULTS: {} {} chain sequences met the quality threshold'.format(
+                    len(sequences), chain.lower()))
+                bins = bin_by_index(sequences,
+                                    indexes,
+                                    args.index_length,
+                                    args.index_position,
+                                    args.index_reverse_complement)
+                if args.minimum_well_size == 'relative':
+                    min_well_size = int(len(sequences) / float(args.minimum_well_size_denom))
+                else:
+                    min_well_size = int(args.minimum_well_size)
+                min_max_well_size = max(min_well_size, args.minimum_max_well_size)
+                if max([len(b) for b in bins.values()]) < int(min_max_well_size):
+                    logger.info('The biggest well had fewer than {} sequences, so the plate was not processed'.format(min_max_well_size))
                     continue
-                print_bin_info(b)
-                if args.raw_sequence_dir is not None:
-                	rs_handle = open(os.path.join(args.raw_sequence_dir, '{}-{}_{}'.format(plate_name, b, chain)), 'write')
-                	rs_handle.write('\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in bins[b]]))
-                	rs_handle.close()
-                consentroid = cdhit_clustering(bins[b],
-                                               b,
-                                               plate_name,
-                                               args.temp_dir,
-                                               len(sequences),
-                                               args.minimum_well_size,
-                                               args.minimum_well_size_denom,
-                                               args.minimum_cluster_fraction,
-                                               args.raw_sequence_dir,
-                                               args.alignment_pixel_dir,
-                                               args.consensus,
-                                               args.cdhit_threshold,
-                                               chain)
-                if consentroid:
-                    consentroid_name = '{}-{}'.format(plate_name, b)
-                    plate_seqs.append((consentroid_name, consentroid))
-            log_output(bins, plate_seqs, min_well_size)
-            all_seqs.extend(plate_seqs)
-    write_output(all_seqs, args.output)
+                for b in sorted(bins.keys()):
+                    if len(bins[b]) < 25:
+                        continue
+                    print_bin_info(b)
+                    if args.raw_sequence_dir is not None:
+                        rs_handle = open(os.path.join(args.raw_sequence_dir, '{}-{}_{}'.format(plate_name, b, chain)), 'write')
+                        rs_handle.write('\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in bins[b]]))
+                        rs_handle.close()
+                    consentroid = cdhit_clustering(bins[b],
+                                                   b,
+                                                   plate_name,
+                                                   args.temp_dir,
+                                                   len(sequences),
+                                                   args.minimum_well_size,
+                                                   args.minimum_well_size_denom,
+                                                   args.minimum_cluster_fraction,
+                                                   args.raw_sequence_dir,
+                                                   args.alignment_pixel_dir,
+                                                   args.consensus,
+                                                   args.cdhit_threshold,
+                                                   chain)
+                    if consentroid:
+                        consentroid_name = '{}-{}'.format(plate_name, b)
+                        plate_seqs.append((consentroid_name, consentroid))
+                log_output(bins, plate_seqs, min_well_size)
+                # all_seqs.extend(plate_seqs)
+                write_output(plate_seqs, args.output)
+                logger.info('')
     logger.info('')
 
 

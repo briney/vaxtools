@@ -37,8 +37,9 @@ import ete3 as ete2
 
 from abstar import run as run_abstar
 
-from abtools.alignment import muscle
+from abtools.alignment import mafft, muscle
 from abtools.cluster import cluster
+from abtools.color import hex_to_rgb
 from abtools.phylogeny.utils import tree
 from abtools.sequence import Sequence
 from abtools.utils.decorators import lazy_property
@@ -381,13 +382,14 @@ class Lineage(object):
             plt.show()
 
 
-    def phylogeny(self, project_dir, aln_file=None, tree_file=None, aa=False,
-            root=None, colors=None, color_function=None, orders=None, order_function=None,
-            chain='heavy', filter_function=None, just_pairs=False,
-            scale=None, branch_vert_margin=None, fontsize=12, show_names=True,
+    def phylogeny(self, project_dir, aln_file=None, tree_file=None, aa=False, root=None,
+            root_name=None, show_root_name=False, colors=None, color_function=None, orders=None, order_function=None,
+            chain='heavy', filter_function=None, just_pairs=False, color_node_labels=False, label_colors=None,
+            scale=None, branch_vert_margin=None, fontsize=12, show_names=True, show_scale=False,
             mirror=False, min_order_fraction=0.1, figname_prefix=None, figname_suffix=None,
             linked_alignment=None, alignment_fontsize=11, scale_factor=1,
-            alignment_height=50, alignment_width=50, compact_alignment=False, linewidth=1.0):
+            alignment_height=50, alignment_width=50, compact_alignment=False, linewidth=1.0,
+            show_output=False):
         '''
         Generates a lineage phylogeny figure.
 
@@ -447,22 +449,27 @@ class Lineage(object):
         seq_field = 'vdj_aa' if aa else 'vdj_nt'
         project_dir = os.path.abspath(project_dir)
         orientation = 1 if mirror else 0
+        root_name = root_name if root_name is not None else 'root'
         # get sequences for phylogeny
         if chain == 'heavy':
             seq_pool = self.just_pairs if just_pairs else self.heavies
             seqs = [p.heavy for p in seq_pool]
+            if filter_function is not None:
+                seqs = filter_function(seqs)
             if root is None:
                 root = self.uca.heavy[seq_field]
-            seqs += [Sequence(root, id='root')]
+            seqs += [Sequence(root, id=root_name)]
         else:
             seq_pool = self.just_pairs if just_pairs else self.lights
             seqs = [p.light for p in seq_pool]
+            if filter_function is not None:
+                seqs = filter_function(seqs)
             if root is None:
                 root = self.uca.light[seq_field]
-            seqs += [Sequence(root, id='root')]
+            seqs += [Sequence(root, id=root_name)]
         # filter sequences
-        if filter_function is not None:
-            seqs = filter_function(seqs)
+        # if filter_function is not None:
+        #     seqs = filter_function(seqs)
         # setup orders
         if orders is None:
             if order_function is not None:
@@ -475,21 +482,23 @@ class Lineage(object):
                 colors = {}
         # make msa
         if all([aln_file is None, tree_file is None]):
-            aln_file = os.path.join(project_dir, '{}.aln'.format(self.name))
+            aln_file = os.path.abspath(os.path.join(project_dir, '{}.aln'.format(self.name)))
             muscle(seqs, aln_file, as_file=True)
+            # mafft(seqs, aln_file, as_file=True)
         # make treefile
         if tree_file is None:
-            tree_file = os.path.join(project_dir, '{}.nw'.format(self.name))
-            tree.fast_tree(aln_file, tree_file, is_aa=aa)
+            tree_file = os.path.abspath(os.path.join(project_dir, '{}.nw'.format(self.name)))
+            tree.fast_tree(aln_file, tree_file, is_aa=aa, show_output=show_output)
         # make phylogeny
         prefix = '' if figname_prefix is None else figname_prefix
         suffix = '' if figname_suffix is None else figname_suffix
         fig_file = os.path.join(project_dir, '{}{}{}.pdf'.format(prefix, self.name, suffix))
-        self._make_tree_figure(tree_file, fig_file, colors, orders,
+        self._make_tree_figure(tree_file, fig_file, colors, orders, root_name,
             show_names=show_names, branch_vert_margin=branch_vert_margin, scale=scale,
+            color_node_labels=color_node_labels, label_colors=label_colors, show_root_name=show_root_name,
             tree_orientation=orientation, fontsize=fontsize, min_order_fraction=min_order_fraction,
             linked_alignment=linked_alignment, alignment_fontsize=alignment_fontsize,
-            alignment_height=alignment_height, alignment_width=alignment_width,
+            alignment_height=alignment_height, alignment_width=alignment_width, show_scale=show_scale,
             compact_alignment=compact_alignment, scale_factor=scale_factor, linewidth=linewidth)
 
 
@@ -518,20 +527,23 @@ class Lineage(object):
         return metadata
 
 
-    def _make_tree_figure(self, tree, fig, colors, orders, scale=None, branch_vert_margin=None,
-            fontsize=12, show_names=True, tree_orientation=0, min_order_fraction=0.1,
+    def _make_tree_figure(self, tree, fig, colors, orders, root_name, scale=None, branch_vert_margin=None,
+            fontsize=12, show_names=True, color_node_labels=False, label_colors=None,
+            tree_orientation=0, min_order_fraction=0.1, show_root_name=False,
             linked_alignment=None, alignment_fontsize=11, alignment_height=50, alignment_width=50,
-            compact_alignment=False, scale_factor=1, linewidth=1):
+            compact_alignment=False, scale_factor=1, linewidth=1, show_scale=False):
         if show_names is True:
             show_names = [p.name for p in self.pairs]
         elif show_names is False:
             show_names = []
+        if show_root_name is True:
+            show_names.append(root_name)
         if linked_alignment is not None:
             t = ete2.PhyloTree(tree, alignment=linked_alignment, alg_format='fasta')
             ete2.faces.SequenceItem = MySequenceItem
         else:
             t = ete2.Tree(tree)
-        t.set_outgroup(t&"root")
+        t.set_outgroup(t&root_name)
         # style the nodes
         for node in t.traverse():
             if orders is not None:
@@ -567,10 +579,23 @@ class Lineage(object):
             #     style['vt_line_type'] = 0
             #     style['hz_line_type'] = 0
             if node.name in show_names:
-                tf = ete2.TextFace(node.name)
-                tf.fsize = fontsize
+                if color_node_labels:
+                    if label_colors is None:
+                        node_color = color
+                    elif type(label_colors) == dict:
+                        node_color = label_colors.get(node.name, '#000000')
+                    elif type(label_colors) in [list, tuple]:
+                        node_color = color if node.name in label_colors else '#000000'
+                    else:
+                        node_color = '#000000'
+                else:
+                    node_color = '#000000'
+                tf = ete2.TextFace(node.name,
+                                   fsize=fontsize,
+                                   fgcolor=node_color)
+                # tf.fsize = fontsize
                 node.add_face(tf, column=0)
-                style['fgcolor'] = '#000000'
+                # style['fgcolor'] = hex_to_rgb(node_color)
             # else:
             #     if hasattr(node, "sequence"):
             #         node.add_face(ete2.SeqMotifFace(seq=node.sequence,
@@ -588,7 +613,7 @@ class Lineage(object):
             ts.scale = int(scale)
         if branch_vert_margin is not None:
             ts.branch_vertical_margin = float(branch_vert_margin)
-        ts.show_scale = False
+        ts.show_scale = show_scale
         # ladderize
         t.ladderize()
         # render the tree
