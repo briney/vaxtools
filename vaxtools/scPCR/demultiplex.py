@@ -173,6 +173,10 @@ def parse_args():
                         help="If set, will compute the centroid sequence as the representative sequence \
                         for each passed cluster. \
                         Default is to calculate the consensus.")
+    parser.add_argument('--raw-sequence-field', dest='raw_seq_field', default='oriented_input',
+                        help="Use to select the raw sequence field from which the binning barcodes will be parsed. \
+                        If using an older versions of AbStar set this option to 'raw_query'. \
+                        Default is 'oriented_input', which works for version of AbStar >= 1.0.")
     parser.add_argument('--debug', dest='debug', action='store_true', default=False,
                         help="If set, will run in debug mode.")
     return parser.parse_args()
@@ -229,7 +233,7 @@ class Args(object):
 
 def get_sequences(db, collection, chain, score_cutoff):
     seqs = db[collection].find({'chain': chain, 'prod': 'yes', 'v_gene.score': {'$gte': score_cutoff}},
-                               {'seq_id': 1, 'raw_input': 1, 'raw_query': 1, 'vdj_nt': 1})
+                               {'seq_id': 1, 'raw_input': 1, 'raw_query': 1, 'oriented_input': 1, 'vdj_nt': 1})
     return [s for s in seqs]
 
 
@@ -574,16 +578,16 @@ def reverse_complement(seq):
     return ''.join(rc)
 
 
-def bin_by_index(sequences, indexes, index_length, index_position, rev_comp):
+def bin_by_index(sequences, indexes, index_length, index_position, rev_comp, raw_seq_field):
     bins = {w: [] for w in indexes.values()}
     if not index_length:
         index_length = min(list(set([len(i) for i in indexes.keys()])))
     pos = index_length if index_position == 'start' else -1 * index_length
     for seq in sequences:
         if index_position == 'start':
-            index = seq['raw_query'][:pos]
+            index = seq[raw_seq_field][:pos]
         else:
-            index = seq['raw_query'][pos:]
+            index = seq[raw_seq_field][pos:]
         if rev_comp:
             index = reverse_complement(index)
         if index in indexes:
@@ -745,7 +749,8 @@ def main(args, logfile=None):
                                     indexes,
                                     args.index_length,
                                     args.index_position,
-                                    args.index_reverse_complement)
+                                    args.index_reverse_complement,
+                                    args.raw_seq_field)
                 if args.minimum_well_size == 'relative':
                     min_well_size = int(len(sequences) / float(args.minimum_well_size_denom))
                 else:
