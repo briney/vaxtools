@@ -29,6 +29,8 @@ import os
 import random
 import string
 
+import numpy as np
+
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
@@ -39,7 +41,7 @@ from abstar import run as run_abstar
 
 from abtools.alignment import mafft, muscle
 from abtools.cluster import cluster
-from abtools.color import hex_to_rgb
+from abtools.color import hex_to_rgb, get_cmap
 from abtools.phylogeny.utils import tree
 from abtools.sequence import Sequence
 from abtools.utils.decorators import lazy_property
@@ -382,12 +384,12 @@ class Lineage(object):
             plt.show()
 
 
-    def phylogeny(self, project_dir, aln_file=None, tree_file=None, aa=False, root=None,
+    def phylogeny(self, project_dir, aln_file=None, tree_file=None, root=None, seq_field='vdj_nt', aa=False,
             root_name=None, show_root_name=False, colors=None, color_function=None, orders=None, order_function=None,
             chain='heavy', filter_function=None, just_pairs=False, color_node_labels=False, label_colors=None,
-            scale=None, branch_vert_margin=None, fontsize=12, show_names=True, show_scale=False,
+            scale=None, branch_vert_margin=None, fontsize=12, show_names=True, name_field='seq_id', show_scale=False,
             mirror=False, min_order_fraction=0.1, figname_prefix=None, figname_suffix=None,
-            linked_alignment=None, alignment_fontsize=11, scale_factor=1,
+            linked_alignment=None, alignment_fontsize=11, scale_factor=1, rename_function=None,
             alignment_height=50, alignment_width=50, compact_alignment=False, linewidth=1.0,
             show_output=False):
         '''
@@ -446,13 +448,14 @@ class Lineage(object):
         figname_suffix: by default, figures will be named <lineage_id>.pdf. If suffix='_suffix' and
             the lineage ID is 'ABC123', the figure file will be named 'ABC123_suffix.pdf'.
         '''
-        seq_field = 'vdj_aa' if aa else 'vdj_nt'
+        # seq_field = 'vdj_nt' if seq_field is None else seq_field
         project_dir = os.path.abspath(project_dir)
         orientation = 1 if mirror else 0
         root_name = root_name if root_name is not None else 'root'
         # get sequences for phylogeny
         if chain == 'heavy':
             seq_pool = self.just_pairs if just_pairs else self.heavies
+            # seqs = [Sequence(p.heavy[seq_field], id=p.heavy[name_field]) for p in seq_pool]
             seqs = [p.heavy for p in seq_pool]
             if filter_function is not None:
                 seqs = filter_function(seqs)
@@ -461,6 +464,7 @@ class Lineage(object):
             seqs += [Sequence(root, id=root_name)]
         else:
             seq_pool = self.just_pairs if just_pairs else self.lights
+            # seqs = [Sequence(p.light[seq_field], id=p.light[name_field]) for p in seq_pool]
             seqs = [p.light for p in seq_pool]
             if filter_function is not None:
                 seqs = filter_function(seqs)
@@ -483,8 +487,8 @@ class Lineage(object):
         # make msa
         if all([aln_file is None, tree_file is None]):
             aln_file = os.path.abspath(os.path.join(project_dir, '{}.aln'.format(self.name)))
-            muscle(seqs, aln_file, as_file=True)
-            # mafft(seqs, aln_file, as_file=True)
+            # muscle(seqs, aln_file, as_file=True)
+            mafft(seqs, aln_file, as_file=True)
         # make treefile
         if tree_file is None:
             tree_file = os.path.abspath(os.path.join(project_dir, '{}.nw'.format(self.name)))
@@ -493,11 +497,11 @@ class Lineage(object):
         prefix = '' if figname_prefix is None else figname_prefix
         suffix = '' if figname_suffix is None else figname_suffix
         fig_file = os.path.join(project_dir, '{}{}{}.pdf'.format(prefix, self.name, suffix))
-        self._make_tree_figure(tree_file, fig_file, colors, orders, root_name,
-            show_names=show_names, branch_vert_margin=branch_vert_margin, scale=scale,
+        self._make_tree_figure(tree_file, fig_file, colors, orders, root_name, rename_function=rename_function,
+            show_names=show_names, name_field=name_field, branch_vert_margin=branch_vert_margin, scale=scale,
             color_node_labels=color_node_labels, label_colors=label_colors, show_root_name=show_root_name,
             tree_orientation=orientation, fontsize=fontsize, min_order_fraction=min_order_fraction,
-            linked_alignment=linked_alignment, alignment_fontsize=alignment_fontsize,
+            linked_alignment=linked_alignment, alignment_fontsize=alignment_fontsize, chain=chain,
             alignment_height=alignment_height, alignment_width=alignment_width, show_scale=show_scale,
             compact_alignment=compact_alignment, scale_factor=scale_factor, linewidth=linewidth)
 
@@ -528,12 +532,15 @@ class Lineage(object):
 
 
     def _make_tree_figure(self, tree, fig, colors, orders, root_name, scale=None, branch_vert_margin=None,
-            fontsize=12, show_names=True, color_node_labels=False, label_colors=None,
-            tree_orientation=0, min_order_fraction=0.1, show_root_name=False,
+            fontsize=12, show_names=True, name_field='seq_id', rename_function=None, color_node_labels=False, label_colors=None,
+            tree_orientation=0, min_order_fraction=0.1, show_root_name=False, chain=None,
             linked_alignment=None, alignment_fontsize=11, alignment_height=50, alignment_width=50,
             compact_alignment=False, scale_factor=1, linewidth=1, show_scale=False):
         if show_names is True:
-            show_names = [p.name for p in self.pairs]
+            if chain == 'heavy':
+                show_names = [p.heavy[name_field] for p in self.pairs if p.heavy is not None]
+            else:
+                show_names = [p.light[name_field] for p in self.pairs if p.light is not None]
         elif show_names is False:
             show_names = []
         if show_root_name is True:
@@ -590,7 +597,8 @@ class Lineage(object):
                         node_color = '#000000'
                 else:
                     node_color = '#000000'
-                tf = ete2.TextFace(node.name,
+                node_name = node.name if rename_function is None else rename_function(node.name)
+                tf = ete2.TextFace(node_name,
                                    fsize=fontsize,
                                    fgcolor=node_color)
                 # tf.fsize = fontsize
@@ -754,15 +762,34 @@ class Lineage(object):
         return fmap.get(field.lower(), None)
 
 
-def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, singleton_color='lightgrey', shuffle_colors=False, seed=1234):
-    _colors = _get_donut_colors(lineages, singleton_color, shuffle_colors, seed)
-    for l, c in zip(lineages, _colors):
-        l.color = c
-
+def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, monochrome_color=None, singleton_color='lightgrey', shuffle_colors=False, seed=1234,
+          text_kws={}, pie_kws={}):
     lineages = sorted(lineages, key=lambda x: x.size(pairs_only), reverse=True)
-    singletons = sum([1 for l in lineages if l.size(pairs_only) == 1])
-    lineage_sizes = [l.size(pairs_only) for l in lineages if l.size(pairs_only) > 1] + [singletons]
-    colors = [l.color for l in lineages if l.size(pairs_only) > 1] + [singleton_color]
+    non_singletons = [l for l in lineages if l.size(pairs_only) > 1]
+    singleton_count = sum([1 for l in lineages if l.size(pairs_only) == 1])
+    lineage_sizes = [l.size(pairs_only) for l in lineages if l.size(pairs_only) > 1] + [singleton_count]
+    if monochrome_color is not None:
+        colors = _get_monochrome_colors(monochrome_color, len(non_singletons))
+        # we shuffle the colors differently if we're using a monochrome palette, because
+        # we want to have the first color (largest lineage) always be the user-supplied
+        # monochrome_color. We only want to shuffle the colors starting with the second one.
+        if shuffle_colors:
+            primary = colors[0]
+            secondary = colors[1:]
+            random.seed(seed)
+            random.shuffle(secondary)
+            colors = [primary] + secondary
+    else:
+        colors = _get_donut_colors(len(non_singletons))
+        if shuffle_colors:
+            random.seed(seed)
+            random.shuffle(colors)
+    colors += [singleton_color]
+
+    # _colors = _get_donut_colors(lineages, len(lineage_sizes), color, singleton_color, shuffle_colors, seed)
+    # for l, c in zip(lineages, _colors):
+    #     l.color = c
+    # colors = [l.color for l in lineages if l.size(pairs_only) > 1] + [singleton_color]
 
     fig = plt.figure(figsize=figsize)
     ax = plt.gca()
@@ -770,6 +797,8 @@ def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, singleton_co
     ax.axis('equal')
     width = 0.55
     kwargs = dict(colors=colors, startangle=90)
+    for k, v in pie_kws.items():
+        kwargs[k] = v
     inside, _ = ax.pie(lineage_sizes, radius=1, pctdistance=1 - width / 2, **kwargs)
     plt.setp(inside, width=width, edgecolor='white')
 
@@ -777,6 +806,8 @@ def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, singleton_co
         w.set_linewidth(2)
 
     kwargs = dict(size=28, color='k', va='center', fontweight='bold')
+    for k, v in text_kws.items():
+        kwargs[k] = v
     ax.text(0, 0, str(sum(lineage_sizes)), ha='center', **kwargs)
 
     plt.tight_layout()
@@ -787,14 +818,22 @@ def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, singleton_co
         plt.show()
 
 
-def _get_donut_colors(lineages, singleton_color, shuffle_colors, seed):
-    N = len(lineages)
+def _get_donut_colors(N):
     HSV_tuples = [(x * 1.0 / N, 0.8, 0.9) for x in range(N)]
     RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)[::-1]
-    if shuffle_colors:
-        random.seed = seed
-        random.shuffle(RGB_tuples)
     return RGB_tuples
+
+
+def _get_monochrome_colors(monochrome_color, N):
+    cmap = get_cmap(from_color=monochrome_color)
+    # this is a bit convoluted, but what's happening is we're getting different colormap
+    # values (which range from 0 to 1). Calling cmap(i) returns an rgba tuple, but we just need
+    # the rbg, so we drop the a. To make sure that one of the colors isn't pure white,
+    # we ask np.linspace() for one more value than we need, reverse the list of RGB tuples
+    # so that it goes from dark to light, and drop the lightest value
+    RGB_tuples = [cmap(i)[:-1] for i in np.linspace(0, 1, N + 1)][::-1][:-1]
+    return RGB_tuples
+
 
 
 def group_lineages(pairs, just_pairs=False):
