@@ -173,10 +173,10 @@ def parse_args():
                         help="If set, will compute the centroid sequence as the representative sequence \
                         for each passed cluster. \
                         Default is to calculate the consensus.")
-    parser.add_argument('--raw-sequence-field', dest='raw_seq_field', default='oriented_input',
+    parser.add_argument('--raw-sequence-field', dest='raw_seq_field', default='raw_input',
                         help="Use to select the raw sequence field from which the binning barcodes will be parsed. \
                         If using an older versions of AbStar set this option to 'raw_query'. \
-                        Default is 'oriented_input', which works for version of AbStar >= 1.0.")
+                        Default is 'raw_input', which works for version of AbStar >= 1.0.")
     parser.add_argument('--debug', dest='debug', action='store_true', default=False,
                         help="If set, will run in debug mode.")
     return parser.parse_args()

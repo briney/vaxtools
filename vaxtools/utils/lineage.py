@@ -42,7 +42,7 @@ from abstar import run as run_abstar
 from abtools.alignment import mafft, muscle
 from abtools.cluster import cluster
 from abtools.color import hex_to_rgb, get_cmap
-from abtools.phylogeny.utils import tree
+from abtools.phylogeny import tree
 from abtools.sequence import Sequence
 from abtools.utils.decorators import lazy_property
 
@@ -303,7 +303,7 @@ class Lineage(object):
             p.verified = True if p.name in verified_ids else False
 
 
-    def dot_alignment(self, seq_field='vdj_nt', name_field='seq_id',
+    def dot_alignment(self, seq_field='vdj_nt', name_field='seq_id', uca=None,
             chain='heavy', uca_name='UCA', as_fasta=False, just_alignment=False):
         '''
         Returns a multiple sequence alignment of all lineage sequence with the UCA
@@ -320,17 +320,20 @@ class Lineage(object):
         -------
         The dot alignment (string)
         '''
+        if uca is None:
+            uca = self.uca.heavy if chain == 'heavy' else self.uca.light
+        uca.id = 'UCA'
         if chain == 'heavy':
             sequences = [p.heavy for p in self.heavies if seq_field in p.heavy]
             if name_field != 'seq_id':
-                self.uca.heavy[name_field] = self.uca.heavy['seq_id']
-            sequences.append(self.uca.heavy)
+                uca[name_field] = uca['seq_id']
+            sequences.append(uca)
             seqs = [(s[name_field], s[seq_field]) for s in sequences]
         else:
             sequences = [p.light for p in self.lights if seq_field in p.light]
             if name_field != 'seq_id':
-                self.uca.light[name_field] = self.uca.light['seq_id']
-            sequences.append(self.uca.light)
+                uca[name_field] = uca['seq_id']
+            sequences.append(uca)
             seqs = [(s[name_field], s[seq_field]) for s in sequences]
         aln = muscle(seqs)
         g_aln = [a for a in aln if a.id == 'UCA'][0]
