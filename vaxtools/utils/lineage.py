@@ -28,21 +28,22 @@ import math
 import os
 import random
 import string
+import subprocess as sp
 
 import numpy as np
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-# import ete2
-import ete3 as ete2
+import ete2
+# import ete3 as ete2
 
 from abstar import run as run_abstar
 
 from abtools.alignment import mafft, muscle
 from abtools.cluster import cluster
 from abtools.color import hex_to_rgb, get_cmap
-from abtools.phylogeny import tree
+# from abtools.phylogeny import tree
 from abtools.sequence import Sequence
 from abtools.utils.decorators import lazy_property
 
@@ -495,7 +496,7 @@ class Lineage(object):
         # make treefile
         if tree_file is None:
             tree_file = os.path.abspath(os.path.join(project_dir, '{}.nw'.format(self.name)))
-            tree.fast_tree(aln_file, tree_file, is_aa=aa, show_output=show_output)
+            fast_tree(aln_file, tree_file, is_aa=aa, show_output=show_output)
         # make phylogeny
         prefix = '' if figname_prefix is None else figname_prefix
         suffix = '' if figname_suffix is None else figname_suffix
@@ -763,6 +764,20 @@ class Lineage(object):
                 'vdj_nt': 'vdj_germ_nt',
                 'vdj_aa': 'vdj_germ_aa'}
         return fmap.get(field.lower(), None)
+
+
+def fast_tree(alignment, tree, is_aa, show_output=False):
+    if is_aa:
+        ft_cmd = 'fasttree {} > {}'.format(alignment, tree)
+    else:
+        ft_cmd = 'fasttree -nt {} > {}'.format(alignment, tree)
+    ft = sp.Popen(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE, shell=True)
+    stdout, stderr = ft.communicate()
+    if show_output:
+        print(ft_cmd)
+        print(stdout)
+        print(stderr)
+    return tree
 
 
 def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, monochrome_color=None, singleton_color='lightgrey', shuffle_colors=False, seed=1234,
