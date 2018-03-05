@@ -75,8 +75,8 @@ def mutation_probabilities(collections, standard, outfile=None, query=None,
     print('\ncalculating mutation probabilities...')
     mcounts = Counter(mutations)
     total = sum(mcounts.values())
-    norm_counts = {k: float(v) / total for k, v in mcounts.iteritems()}
-    prob_string = '\n'.join(['{}\t{}'.format(k, v) for k, v in norm_counts.items()])
+    norm_counts = {k: float(v) / total for k, v in mcounts.items()}
+    prob_string = '\n'.join(['{}\t{}'.format(k, v) for k, v in list(norm_counts.items())])
     if outfile is not None:
         open(outfile, 'w').write(prob_string)
     return norm_counts
@@ -84,7 +84,7 @@ def mutation_probabilities(collections, standard, outfile=None, query=None,
 
 def chunker(l, n):
     'Generator that produces n-length chunks from iterable l.'
-    for i in xrange(0, len(l), n):
+    for i in range(0, len(l), n):
         yield l[i:i + n]
 
 

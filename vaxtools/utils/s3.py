@@ -111,8 +111,8 @@ def print_compress_info(d, output, compress):
 
 def configure():
 	logger.info('')
-	access_key = raw_input('AWS Access Key: ')
-	secret_key = raw_input('AWS Secret Key: ')
+	access_key = input('AWS Access Key: ')
+	secret_key = input('AWS Secret Key: ')
 	_write_config(access_key, secret_key)
 	logger.info('')
 	logger.info('Completed writing S3 config file.')

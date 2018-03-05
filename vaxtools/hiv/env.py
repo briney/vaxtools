@@ -29,8 +29,8 @@ import os
 
 from Bio import SeqIO
 
-from abtools.alignment import global_alignment
-from abtools.sequence import Sequence
+from abutils.utils.alignment import global_alignment
+from abutils.core.sequence import Sequence
 
 
 
@@ -143,7 +143,7 @@ class Env(object):
         riter = iter(self.aligned_reference)
         while ref < pos:
             try:
-                p = riter.next()
+                p = next(riter)
                 raw += 1
                 if p != '-':
                     ref += 1
@@ -165,7 +165,7 @@ def get_clades():
 def get_env_sequences(clade=None):
     if clade is None:
         clade = CLADES
-    elif type(clade) in [str, unicode]:
+    elif type(clade) in [str, str]:
         clade = [clade, ]
 
     envs = []
@@ -189,7 +189,7 @@ def get_all_glycan_positions(envs=None, clade=None, minimum_frequency=0.01):
     for e in envs:
         glycans.extend(_find_all_glycans(e))
     glycount = Counter(glycans)
-    glycan_positions = [g for g, c in glycount.items() if float(c) / len(envs) >= minimum_frequency]
+    glycan_positions = [g for g, c in list(glycount.items()) if float(c) / len(envs) >= minimum_frequency]
     return sorted(glycan_positions)
 
 
@@ -218,7 +218,7 @@ def parse_envs_into_clades(env_file, output_directory, clades=CLADES):
         clade = raw_clade if raw_clade in clades else 'OTHER'
         envs_by_clade[clade].append(s)
     ehandle.close()
-    for c in envs_by_clade.keys():
+    for c in list(envs_by_clade.keys()):
         ofile = os.path.join(output_directory, '{}.fasta'.format(c))
         fastas = ['>{}\n{}'.format(s.id, str(s.seq)) for s in envs_by_clade[c]]
         open(ofile, 'w').write('\n'.join(fastas))

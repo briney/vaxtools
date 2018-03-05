@@ -59,14 +59,14 @@ def simulate(probabilities, n_mutations=1, n_sequences=50000):
     '''
     vrc01_muts = get_vrc01_class_mutations()
     sim_muts = []
-    muts, probs = zip(*probabilities.items())
+    muts, probs = list(zip(*list(probabilities.items())))
     start = datetime.now()
     for i in range(n_sequences):
         m = np.random.choice(muts, size=n_mutations, replace=False, p=probs)
         sim_muts.append(m)
         if (i + 1) % 100 == 0:
             progress_bar(i + 1, n_sequences, start)
-    mut_counts = [len(filter(lambda x: x in vrc01_muts, sublist)) for sublist in sim_muts]
+    mut_counts = [len([x for x in sublist if x in vrc01_muts]) for sublist in sim_muts]
     # calculate mean and 95% confidence interval
     n, min_max, mean, var, skew, kurt = stats.describe(mut_counts)
     std = np.sqrt(var)

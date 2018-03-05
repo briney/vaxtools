@@ -144,7 +144,7 @@ class Lineage(object):
 
 
     def __contains__(self, item):
-        if item in self.pair_dict.keys():
+        if item in list(self.pair_dict.keys()):
             return True
         return False
 
@@ -368,7 +368,7 @@ class Lineage(object):
         else:
             colors = _nt_pixel_colors
         ckeys = sorted(colors.keys())
-        res_vals = {r: v for r, v in zip(ckeys, range(len(ckeys)))}
+        res_vals = {r: v for r, v in zip(ckeys, list(range(len(ckeys))))}
         cmap_colors = [colors[res] for res in ckeys]
         cmap = ListedColormap(cmap_colors)
         data = []
@@ -519,7 +519,7 @@ class Lineage(object):
                 metadata = _metadata[0]
             elif len(list(set(_metadata))) > 1:
                 mcount = Counter(_metadata)
-                metadata = sorted([s for s in mcount.keys()],
+                metadata = sorted([s for s in list(mcount.keys())],
                                 key=lambda x: mcount[s],
                                 reverse=True)[0]
         if self.lights and metadata is None:
@@ -529,7 +529,7 @@ class Lineage(object):
                 metadata = _metadata[0]
             elif len(list(set(_metadata))) > 1:
                 mcount = Counter(_metadata)
-                metadata = sorted([s for s in mcount.keys()],
+                metadata = sorted([s for s in list(mcount.keys())],
                                 key=lambda x: mcount[s],
                                 reverse=True)[0]
         return metadata
@@ -735,7 +735,7 @@ class Lineage(object):
         query_seqs = [str(a.seq) for a in aln if a.id != 'UCA']
         for i, g in enumerate(g_aln):
             qcounts = Counter([q[i] for q in query_seqs])
-            qmax = sorted(qcounts.keys(),
+            qmax = sorted(list(qcounts.keys()),
                           key=lambda x: qcounts[x],
                           reverse=True)[0]
             qmax_fraction = float(qcounts[qmax]) / sum(qcounts.values())
@@ -815,7 +815,7 @@ def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, monochrome_c
     ax.axis('equal')
     width = 0.55
     kwargs = dict(colors=colors, startangle=90)
-    for k, v in pie_kws.items():
+    for k, v in list(pie_kws.items()):
         kwargs[k] = v
     inside, _ = ax.pie(lineage_sizes, radius=1, pctdistance=1 - width / 2, **kwargs)
     plt.setp(inside, width=width, edgecolor='white')
@@ -824,7 +824,7 @@ def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, monochrome_c
         w.set_linewidth(2)
 
     kwargs = dict(size=28, color='k', va='center', fontweight='bold')
-    for k, v in text_kws.items():
+    for k, v in list(text_kws.items()):
         kwargs[k] = v
     ax.text(0, 0, str(sum(lineage_sizes)), ha='center', **kwargs)
 
@@ -838,7 +838,7 @@ def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, monochrome_c
 
 def _get_donut_colors(N):
     HSV_tuples = [(x * 1.0 / N, 0.8, 0.9) for x in range(N)]
-    RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)[::-1]
+    RGB_tuples = [colorsys.hsv_to_rgb(*x) for x in HSV_tuples][::-1]
     return RGB_tuples
 
 
@@ -865,7 +865,7 @@ def group_lineages(pairs, just_pairs=False):
                 if l not in lineages:
                     lineages[l] = []
                 lineages[l].append(p)
-    return [Lineage(v) for v in lineages.values()]
+    return [Lineage(v) for v in list(lineages.values())]
 
 
 

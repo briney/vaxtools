@@ -26,7 +26,7 @@
 from __future__ import print_function
 
 from collections import Counter, OrderedDict
-from itertools import izip_longest
+from itertools import zip_longest
 import os
 import random
 
@@ -329,7 +329,7 @@ def vrc01_summary_output_part1(pairs, output_dir):
     df.loc['mean', 'Subject'] = 'mean'
     df.loc['std', 'Subject'] = 'std'
     df.loc['sem', 'Subject'] = 'sem'
-    df = df[stats.keys()]
+    df = df[list(stats.keys())]
     stats_csv = df.to_csv(sep=',', index=False)
     # stats_csv = df.to_csv(sep=',', index=True)
     open(os.path.join(output_dir, 'summary_output.csv'), 'w').write(stats_csv)
@@ -354,7 +354,7 @@ def vrc01_summary_output_part2(pairs, output_dir):
                  'VRC01-like paired light chain VL gene distributions': vrc01like_lpairs,
                  'strict nonVRC01-like paired light chain VL gene distributions': strict_nonvrc01like_lpairs,
                  'nonVRC01-like paired light chain VL gene distributions': nonvrc01like_lpairs}
-    for sname in sequences.keys():
+    for sname in list(sequences.keys()):
         data = {}
         seqs = sequences[sname]
         vl_lengths = {}
@@ -372,7 +372,7 @@ def vrc01_summary_output_part2(pairs, output_dir):
             #     group = 'None'
             vl_genes = [s['v_gene']['gene'] for s in sample_seqs if s['chain'] in ['kappa', 'lambda']]
             vl_counts = Counter(vl_genes)
-            norm_vl_counts = {k: 1. * v / sum(vl_counts.values()) for k, v in vl_counts.items()}
+            norm_vl_counts = {k: 1. * v / sum(vl_counts.values()) for k, v in list(vl_counts.items())}
             norm_vl_counts['total sequences'] = sum(vl_counts.values())
             # name = '{}_{}'.format(group, sample)
             name = sample
@@ -395,13 +395,13 @@ def vrc01_summary_output_part2(pairs, output_dir):
 
 def _get_sample(s):
     slist = []
-    if 'experiment' in s.keys():
+    if 'experiment' in list(s.keys()):
         slist.append(s['experiment'])
-    if 'group' in s.keys():
+    if 'group' in list(s.keys()):
         slist.append(s['group'])
-    if 'subject' in s.keys():
+    if 'subject' in list(s.keys()):
         slist.append(s['subject'])
-    if 'timepoint' in s.keys():
+    if 'timepoint' in list(s.keys()):
         slist.append(s['timepoint'])
     return '|'.join(slist)
 
@@ -471,7 +471,7 @@ def vrc01_summary_output_part4(pairs, output_dir):
                  'strict nonVRC01-like paired light chain indel distributions': strict_nonvrc01like_lpairs,
                  'nonVRC01-like paired heavy chain indel distributions': nonvrc01like_hpairs,
                  'nonVRC01-like paired light chain indel distributions': nonvrc01like_lpairs}
-    for sname in sequences.keys():
+    for sname in list(sequences.keys()):
         data = {}
         seqs = sequences[sname]
         for sample in samples:
@@ -487,8 +487,8 @@ def vrc01_summary_output_part4(pairs, output_dir):
             #     group = 'None'
             ins_dist = Counter([indel['len'] for s in ins_seqs for indel in s['v_ins']])
             del_dist = Counter([indel['len'] for s in del_seqs for indel in s['v_del']])
-            norm_ins_dist = {k: 1. * v / sum(ins_dist.values()) for k, v in ins_dist.items()}
-            norm_del_dist = {k: 1. * v / sum(del_dist.values()) for k, v in del_dist.items()}
+            norm_ins_dist = {k: 1. * v / sum(ins_dist.values()) for k, v in list(ins_dist.items())}
+            norm_del_dist = {k: 1. * v / sum(del_dist.values()) for k, v in list(del_dist.items())}
             norm_ins_dist['total sequences'] = len(sample_seqs)
             norm_ins_dist['indel sequences'] = len(ins_seqs)
             norm_del_dist['total sequences'] = len(sample_seqs)
@@ -560,7 +560,7 @@ def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=T
                     _shared.append(False)
             all_shared[vrc01.id] = _shared
         any_shared = 0
-        for pos in zip(*all_shared.values()):
+        for pos in zip(*list(all_shared.values())):
             if any(pos):
                 any_shared += 1
         shared.append(any_shared)
@@ -678,7 +678,7 @@ def get_vrc01_class_sequences(chain='heavy', vgene_only=True, only_include=None)
         light = []
     seqs = heavy if chain == 'heavy' else light
     if only_include is not None:
-        if type(only_include) in [str, unicode]:
+        if type(only_include) in [str, str]:
             only_include = [only_include, ]
         seqs = [s for s in seqs if s[0] in only_include]
     return [Sequence(s) for s in seqs]
@@ -720,7 +720,7 @@ def shared_mutation_kde_plot(xs, ys, cmaps, figfile=None, figsize=(8, 8), n_leve
     if ylim is None:
         ylim = [0, max([max(y) for y in ys]) + 1]
 
-    for x, y, cmap, scatcolor, scatalpha in izip_longest(xs, ys, cmaps, scatter_colors, scatter_alphas):
+    for x, y, cmap, scatcolor, scatalpha in zip_longest(xs, ys, cmaps, scatter_colors, scatter_alphas):
         x = np.array(x)
         y = np.array(y)
         ax = sns.kdeplot(x, y, cmap=cmap, shade=True,
