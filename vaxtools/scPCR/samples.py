@@ -24,8 +24,8 @@
 
 import os
 
-from abtools import mongodb
-from abtools.pipeline import list_files
+from abutils.utils import mongodb
+from abutils.utils.pipeline import list_files
 
 
 def assign_sample_metadata(database, collection, ip='localhost', port=27017,
@@ -39,7 +39,7 @@ def assign_sample_metadata(database, collection, ip='localhost', port=27017,
     if experiments is not None:
         assign_experiments(db, collection, experiments)
     if timepoints is not None:
-        assign_timepoints(db, collection, timeponts)
+        assign_timepoints(db, collection, timepoints)
 
 
 def unset_sample_metadata(db, collection, subject=False, group=False,

@@ -159,9 +159,9 @@ class Pair(object):
     @property
     def subject(self):
         if self._subject is None:
-            if self.heavy is not None and 'subject' in self.heavy.keys():
+            if self.heavy is not None and 'subject' in list(self.heavy.keys()):
                 self._subject = self.heavy['subject']
-            elif self.light is not None and 'subject' in self.light.keys():
+            elif self.light is not None and 'subject' in list(self.light.keys()):
                 self._subject = self.light['subject']
         return self._subject
 
@@ -172,9 +172,9 @@ class Pair(object):
     @property
     def group(self):
         if self._group is None:
-            if self.heavy is not None and 'group' in self.heavy.keys():
+            if self.heavy is not None and 'group' in list(self.heavy.keys()):
                 self._group = self.heavy['group']
-            elif self.light is not None and 'group' in self.light.keys():
+            elif self.light is not None and 'group' in list(self.light.keys()):
                 self._group = self.light['group']
         return self._group
 
@@ -185,9 +185,9 @@ class Pair(object):
     @property
     def experiment(self):
         if self._experiment is None:
-            if self.heavy is not None and 'experiment' in self.heavy.keys():
+            if self.heavy is not None and 'experiment' in list(self.heavy.keys()):
                 self._experiment = self.heavy['experiment']
-            elif self.light is not None and 'experiment' in self.light.keys():
+            elif self.light is not None and 'experiment' in list(self.light.keys()):
                 self._experiment = self.light['experiment']
         return self._experiment
 
@@ -198,9 +198,9 @@ class Pair(object):
     @property
     def timepoint(self):
         if self._timepoint is None:
-            if self.heavy is not None and 'timepoint' in self.heavy.keys():
+            if self.heavy is not None and 'timepoint' in list(self.heavy.keys()):
                 self._timepoint = self.heavy['timepoint']
-            elif self.light is not None and 'timepoint' in self.light.keys():
+            elif self.light is not None and 'timepoint' in list(self.light.keys()):
                 self._timepoint = self.light['timepoint']
         return self._timepoint
 
@@ -218,7 +218,7 @@ class Pair(object):
                 self._retranslate(seq)
             except:
                 print('REFINEMENT FAILED: {}, {} chain'.format(s['seq_id'], s['chain']))
-                print(traceback.format_exception_only(sys.exc_type, sys.exc_value))
+                print(traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1]))
 
 
     @staticmethod
@@ -338,17 +338,17 @@ def get_pairs(db, collection, experiment=None, subject=None, group=None, name='s
     if subject is not None:
         if type(subject) in (list, tuple):
             match['subject'] = {'$in': subject}
-        elif type(subject) in (str, unicode):
+        elif type(subject) in (str, str):
             match['subject'] = subject
     if group is not None:
         if type(group) in (list, tuple):
             match['group'] = {'$in': group}
-        elif type(group) in (str, unicode):
+        elif type(group) in (str, str):
             match['group'] = group
     if experiment is not None:
         if type(experiment) in (list, tuple):
             match['experiment'] = {'$in': experiment}
-        elif type(experiment) in (str, unicode):
+        elif type(experiment) in (str, str):
             match['experiment'] = experiment
     seqs = list(db[collection].find(match))
     return assign_pairs(seqs, name=name, delim=delim,
@@ -385,7 +385,7 @@ def assign_pairs(seqs, name='seq_id', delim=None, delim_occurance=1, pairs_only=
             pdict[pname] = [s, ]
         else:
             pdict[pname].append(s)
-    pairs = [Pair(pdict[n], name=n) for n in pdict.keys()]
+    pairs = [Pair(pdict[n], name=n) for n in list(pdict.keys())]
     if pairs_only:
         pairs = [p for p in pairs if p.is_pair]
     return pairs

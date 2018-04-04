@@ -84,7 +84,7 @@ class Plate(object):
     def __repr__(self):
         string = '\n' + self.barcode
         string += '\n{}\n'.format('-' * len(self.barcode))
-        subplates = sorted(self.quadrants.items(), key=lambda x: x[1], reverse=True)
+        subplates = sorted(list(self.quadrants.items()), key=lambda x: x[1], reverse=True)
         for bc, loc in subplates:
             string += '{}: {}\n'.format(loc, bc)
         return string
@@ -185,10 +185,10 @@ def parse_run_order(run_order_file, plates=None, return_parents_only=True):
             # we don't need the file header
             if not header:
                 while line[:10] != 'SAMPLEOPER':
-                    line = f.next()
+                    line = next(f)
                 if line[:10] == 'SAMPLEOPER':
                     header = True
-                    line = f.next()
+                    line = next(f)
             # WAIT lines are truncated, we can skip
             if 'WAIT' in line:
                 continue
@@ -212,7 +212,7 @@ def parse_run_order(run_order_file, plates=None, return_parents_only=True):
         q = c.get_quadrant()
         parents[c.parent].add_subplate(c, q)
     if return_parents_only:
-        par_plates = plates + parents.values()
+        par_plates = plates + list(parents.values())
         return sorted(par_plates, key=lambda x: x.barcode)
-    all_plates = plates + parents.values() + children
+    all_plates = plates + list(parents.values()) + children
     return sorted(all_plates, key=lambda x: x.barcode)

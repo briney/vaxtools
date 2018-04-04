@@ -31,7 +31,7 @@ import pandas as pd
 from abtools.pipeline import make_dir
 
 
-def schief_csv_output(pairs, output_file, sep=','):
+def schief_csv_output(pairs, output_file, sep=',', legacy_abstar=True):
     make_dir(os.path.dirname(output_file))
     header = _get_schief_output_header(sep)
     output = [header, ]
@@ -39,8 +39,8 @@ def schief_csv_output(pairs, output_file, sep=','):
         name = _get_name(p)
         line = [name, ]
         line += _get_pair_metadata(p)
-        line += _schief_output_line(p.heavy)
-        line += _schief_output_line(p.light)
+        line += _schief_output_line(p.heavy, legacy_abstar)
+        line += _schief_output_line(p.light, legacy_abstar)
         output.append(sep.join([str(l) for l in line]))
     open(output_file, 'w').write('\n'.join(output))
 
@@ -95,7 +95,7 @@ def _get_schief_output_header(sep):
     return sep.join(fields)
 
 
-def _schief_output_line(seq):
+def _schief_output_line(seq, legacy):
     if seq is None:
         return [''] * 20
     line = []
@@ -114,19 +114,21 @@ def _schief_output_line(seq):
     line.append(_get_fr_identity(seq, res='nt'))
     line.append(100. - seq['aa_identity']['v'])
     line.append(_get_fr_identity(seq, res='aa'))
-    line.append('')
-    line.append('')
+    line.append('yes' if 'v_ins' in seq else '')
+    line.append('yes' if 'v_del' in seq else '')
     line.append(seq['vdj_aa'])
     line.append(seq['vdj_nt'])
     if 'v_ins' in seq:
+        len_field = 'len' if legacy else 'length'
         line.append(len(seq['v_ins']))
-        line.append('[' + ' '.join([str(i['len']) for i in seq['v_ins']]) + ']')
+        line.append('[' + ' '.join([str(i[len_field]) for i in seq['v_ins']]) + ']')
     else:
         line.append('0')
         line.append('')
     if 'v_del' in seq:
+        len_field = 'len' if legacy else 'length'
         line.append(len(seq['v_del']))
-        line.append('[' + ' '.join([str(i['len']) for i in seq['v_del']]) + ']')
+        line.append('[' + ' '.join([str(i[len_field]) for i in seq['v_del']]) + ']')
     else:
         line.append('0')
         line.append('')

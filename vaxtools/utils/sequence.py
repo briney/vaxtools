@@ -96,7 +96,7 @@ class Sequence(object):
 
 
 	def _process_input(self, seq, id, qual):
-		if type(seq) in [str, unicode]:
+		if type(seq) in [str, str]:
 			self.sequence = str(seq).upper()
 			if id is None:
 				id = uuid.uuid4()

@@ -28,21 +28,22 @@ import math
 import os
 import random
 import string
+import subprocess as sp
 
 import numpy as np
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-# import ete2
-import ete3 as ete2
+import ete2
+# import ete3 as ete2
 
 from abstar import run as run_abstar
 
 from abtools.alignment import mafft, muscle
 from abtools.cluster import cluster
 from abtools.color import hex_to_rgb, get_cmap
-from abtools.phylogeny.utils import tree
+# from abtools.phylogeny import tree
 from abtools.sequence import Sequence
 from abtools.utils.decorators import lazy_property
 
@@ -143,7 +144,7 @@ class Lineage(object):
 
 
     def __contains__(self, item):
-        if item in self.pair_dict.keys():
+        if item in list(self.pair_dict.keys()):
             return True
         return False
 
@@ -303,7 +304,7 @@ class Lineage(object):
             p.verified = True if p.name in verified_ids else False
 
 
-    def dot_alignment(self, seq_field='vdj_nt', name_field='seq_id',
+    def dot_alignment(self, seq_field='vdj_nt', name_field='seq_id', uca=None,
             chain='heavy', uca_name='UCA', as_fasta=False, just_alignment=False):
         '''
         Returns a multiple sequence alignment of all lineage sequence with the UCA
@@ -320,17 +321,20 @@ class Lineage(object):
         -------
         The dot alignment (string)
         '''
+        if uca is None:
+            uca = self.uca.heavy if chain == 'heavy' else self.uca.light
+        uca.id = 'UCA'
         if chain == 'heavy':
             sequences = [p.heavy for p in self.heavies if seq_field in p.heavy]
             if name_field != 'seq_id':
-                self.uca.heavy[name_field] = self.uca.heavy['seq_id']
-            sequences.append(self.uca.heavy)
+                uca[name_field] = uca['seq_id']
+            sequences.append(uca)
             seqs = [(s[name_field], s[seq_field]) for s in sequences]
         else:
             sequences = [p.light for p in self.lights if seq_field in p.light]
             if name_field != 'seq_id':
-                self.uca.light[name_field] = self.uca.light['seq_id']
-            sequences.append(self.uca.light)
+                uca[name_field] = uca['seq_id']
+            sequences.append(uca)
             seqs = [(s[name_field], s[seq_field]) for s in sequences]
         aln = muscle(seqs)
         g_aln = [a for a in aln if a.id == 'UCA'][0]
@@ -364,7 +368,7 @@ class Lineage(object):
         else:
             colors = _nt_pixel_colors
         ckeys = sorted(colors.keys())
-        res_vals = {r: v for r, v in zip(ckeys, range(len(ckeys)))}
+        res_vals = {r: v for r, v in zip(ckeys, list(range(len(ckeys))))}
         cmap_colors = [colors[res] for res in ckeys]
         cmap = ListedColormap(cmap_colors)
         data = []
@@ -492,7 +496,7 @@ class Lineage(object):
         # make treefile
         if tree_file is None:
             tree_file = os.path.abspath(os.path.join(project_dir, '{}.nw'.format(self.name)))
-            tree.fast_tree(aln_file, tree_file, is_aa=aa, show_output=show_output)
+            fast_tree(aln_file, tree_file, is_aa=aa, show_output=show_output)
         # make phylogeny
         prefix = '' if figname_prefix is None else figname_prefix
         suffix = '' if figname_suffix is None else figname_suffix
@@ -515,7 +519,7 @@ class Lineage(object):
                 metadata = _metadata[0]
             elif len(list(set(_metadata))) > 1:
                 mcount = Counter(_metadata)
-                metadata = sorted([s for s in mcount.keys()],
+                metadata = sorted([s for s in list(mcount.keys())],
                                 key=lambda x: mcount[s],
                                 reverse=True)[0]
         if self.lights and metadata is None:
@@ -525,7 +529,7 @@ class Lineage(object):
                 metadata = _metadata[0]
             elif len(list(set(_metadata))) > 1:
                 mcount = Counter(_metadata)
-                metadata = sorted([s for s in mcount.keys()],
+                metadata = sorted([s for s in list(mcount.keys())],
                                 key=lambda x: mcount[s],
                                 reverse=True)[0]
         return metadata
@@ -731,7 +735,7 @@ class Lineage(object):
         query_seqs = [str(a.seq) for a in aln if a.id != 'UCA']
         for i, g in enumerate(g_aln):
             qcounts = Counter([q[i] for q in query_seqs])
-            qmax = sorted(qcounts.keys(),
+            qmax = sorted(list(qcounts.keys()),
                           key=lambda x: qcounts[x],
                           reverse=True)[0]
             qmax_fraction = float(qcounts[qmax]) / sum(qcounts.values())
@@ -760,6 +764,20 @@ class Lineage(object):
                 'vdj_nt': 'vdj_germ_nt',
                 'vdj_aa': 'vdj_germ_aa'}
         return fmap.get(field.lower(), None)
+
+
+def fast_tree(alignment, tree, is_aa, show_output=False):
+    if is_aa:
+        ft_cmd = 'fasttree {} > {}'.format(alignment, tree)
+    else:
+        ft_cmd = 'fasttree -nt {} > {}'.format(alignment, tree)
+    ft = sp.Popen(ft_cmd, stdout=sp.PIPE, stderr=sp.PIPE, shell=True)
+    stdout, stderr = ft.communicate()
+    if show_output:
+        print(ft_cmd)
+        print(stdout)
+        print(stderr)
+    return tree
 
 
 def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, monochrome_color=None, singleton_color='lightgrey', shuffle_colors=False, seed=1234,
@@ -797,7 +815,7 @@ def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, monochrome_c
     ax.axis('equal')
     width = 0.55
     kwargs = dict(colors=colors, startangle=90)
-    for k, v in pie_kws.items():
+    for k, v in list(pie_kws.items()):
         kwargs[k] = v
     inside, _ = ax.pie(lineage_sizes, radius=1, pctdistance=1 - width / 2, **kwargs)
     plt.setp(inside, width=width, edgecolor='white')
@@ -806,7 +824,7 @@ def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, monochrome_c
         w.set_linewidth(2)
 
     kwargs = dict(size=28, color='k', va='center', fontweight='bold')
-    for k, v in text_kws.items():
+    for k, v in list(text_kws.items()):
         kwargs[k] = v
     ax.text(0, 0, str(sum(lineage_sizes)), ha='center', **kwargs)
 
@@ -820,7 +838,7 @@ def donut(lineages, figfile=None, figsize=(6, 6), pairs_only=False, monochrome_c
 
 def _get_donut_colors(N):
     HSV_tuples = [(x * 1.0 / N, 0.8, 0.9) for x in range(N)]
-    RGB_tuples = map(lambda x: colorsys.hsv_to_rgb(*x), HSV_tuples)[::-1]
+    RGB_tuples = [colorsys.hsv_to_rgb(*x) for x in HSV_tuples][::-1]
     return RGB_tuples
 
 
@@ -847,7 +865,7 @@ def group_lineages(pairs, just_pairs=False):
                 if l not in lineages:
                     lineages[l] = []
                 lineages[l].append(p)
-    return [Lineage(v) for v in lineages.values()]
+    return [Lineage(v) for v in list(lineages.values())]
 
 
 

@@ -75,7 +75,7 @@ def cdr3_plot(sequences, outfile=None, chain='heavy'):
     chain = ['kappa', 'lambda'] if chain == 'light' else [chain, ]
     sequences = [s for s in sequences if s['chain'] in chain]
     cdr3s = [s['cdr3_len'] for s in sequences if s['cdr3_len'] > 0 and s['cdr3_len'] <= max_len]
-    x, y = _aggregate(cdr3s, keys=range(1, max_len + 1))
+    x, y = _aggregate(cdr3s, keys=list(range(1, max_len + 1)))
     color = sns.hls_palette(7)[4]
     x_title = 'CDR3 Length (AA)'
     y_title = 'Frequency (%)'
@@ -116,8 +116,8 @@ def _group_by_vj(data, chain):
             continue
         vj[v][j] = vj[v][j] + 1 if j in vj[v] else 1
     total = len(data)
-    for v in vj.keys():
-        for j in vj[v].keys():
+    for v in list(vj.keys()):
+        for j in list(vj[v].keys()):
             vj[v][j] = 100. * vj[v][j] / total
     return vj
 
@@ -215,7 +215,7 @@ def _aggregate(data, norm=True, sort_by='value', keys=None):
                 vdict[d] += 1
     else:
         vdict = Counter(data)
-    vals = [(k, v) for k, v in vdict.iteritems()]
+    vals = [(k, v) for k, v in vdict.items()]
     if sort_by == 'value':
         vals.sort(key=lambda x: x[0])
     else:

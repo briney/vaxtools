@@ -23,7 +23,7 @@
 #
 
 
-from __future__ import print_function
+from __future__ import print_function, absolute_import
 
 import glob
 import logging
@@ -31,13 +31,13 @@ import math
 import os
 import sqlite3
 import string
-from StringIO import StringIO
+from io import StringIO
 import subprocess as sp
 import sys
 import tempfile
 import time
 import traceback
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import uuid
 
 from pymongo import MongoClient
@@ -45,17 +45,17 @@ from pymongo import MongoClient
 import numpy as np
 import pandas as pd
 
-from Bio import AlignIO
+from Bio import AlignIO, SeqIO
 from Bio.Align import AlignInfo
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-from vaxtools.utils import pixel
+from . import pixel
 
-from abtools import log, mongodb
-from abtools.alignment import mafft
-from abtools.pipeline import make_dir
+from abutils.utils import log, mongodb
+from abutils.utils.alignment import mafft
+from abutils.utils.pipeline import make_dir
 
 
 def parse_args():
@@ -173,10 +173,10 @@ def parse_args():
                         help="If set, will compute the centroid sequence as the representative sequence \
                         for each passed cluster. \
                         Default is to calculate the consensus.")
-    parser.add_argument('--raw-sequence-field', dest='raw_seq_field', default='oriented_input',
+    parser.add_argument('--raw-sequence-field', dest='raw_seq_field', default='raw_input',
                         help="Use to select the raw sequence field from which the binning barcodes will be parsed. \
                         If using an older versions of AbStar set this option to 'raw_query'. \
-                        Default is 'oriented_input', which works for version of AbStar >= 1.0.")
+                        Default is 'raw_input', which works for version of AbStar >= 1.0.")
     parser.add_argument('--debug', dest='debug', action='store_true', default=False,
                         help="If set, will run in debug mode.")
     return parser.parse_args()
@@ -191,7 +191,7 @@ class Args(object):
         minimum_well_size='relative', minimum_max_well_size=250, minimum_cluster_fraction='largest',
         minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=True, debug=False):
         super(Args, self).__init__()
-        if not all([output, temp_dir, db]):
+        if not all([output, temp, db]):
             logger.critical("You must supply an output directory, \
                 a temp directory and the name of a MongoDB database.")
             sys.exit(1)
@@ -492,7 +492,7 @@ def get_all_cluster_seqs(cluster, seq_db):
 
 
 def chunker(l, size=900):
-    return (l[pos:pos + size] for pos in xrange(0, len(l), size))
+    return (l[pos:pos + size] for pos in range(0, len(l), size))
 
 
 ###############
@@ -579,9 +579,9 @@ def reverse_complement(seq):
 
 
 def bin_by_index(sequences, indexes, index_length, index_position, rev_comp, raw_seq_field):
-    bins = {w: [] for w in indexes.values()}
+    bins = {w: [] for w in list(indexes.values())}
     if not index_length:
-        index_length = min(list(set([len(i) for i in indexes.keys()])))
+        index_length = min(list(set([len(i) for i in list(indexes.keys())])))
     pos = index_length if index_position == 'start' else -1 * index_length
     for seq in sequences:
         if index_position == 'start':
@@ -656,7 +656,7 @@ def log_options(args, logfile=None):
 
 
 def log_output(bins, seqs, minimum_well_size):
-    num_bins = len([b for b in bins.keys() if len(bins[b]) >= minimum_well_size])
+    num_bins = len([b for b in list(bins.keys()) if len(bins[b]) >= minimum_well_size])
     num_seqs = len(seqs)
     logger.info('')
     logger.info('RESULTS: Of {} wells with at least {} reads, {} passed filter'.format(
@@ -756,7 +756,7 @@ def main(args, logfile=None):
                 else:
                     min_well_size = int(args.minimum_well_size)
                 min_max_well_size = max(min_well_size, args.minimum_max_well_size)
-                if max([len(b) for b in bins.values()]) < int(min_max_well_size):
+                if max([len(b) for b in list(bins.values())]) < int(min_max_well_size):
                     logger.info('The biggest well had fewer than {} sequences, so the plate was not processed'.format(min_max_well_size))
                     continue
                 for b in sorted(bins.keys()):

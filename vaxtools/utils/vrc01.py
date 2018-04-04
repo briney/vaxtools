@@ -26,7 +26,7 @@
 from __future__ import print_function
 
 from collections import Counter, OrderedDict
-from itertools import izip_longest
+from itertools import zip_longest
 import os
 import random
 
@@ -329,7 +329,7 @@ def vrc01_summary_output_part1(pairs, output_dir):
     df.loc['mean', 'Subject'] = 'mean'
     df.loc['std', 'Subject'] = 'std'
     df.loc['sem', 'Subject'] = 'sem'
-    df = df[stats.keys()]
+    df = df[list(stats.keys())]
     stats_csv = df.to_csv(sep=',', index=False)
     # stats_csv = df.to_csv(sep=',', index=True)
     open(os.path.join(output_dir, 'summary_output.csv'), 'w').write(stats_csv)
@@ -354,7 +354,7 @@ def vrc01_summary_output_part2(pairs, output_dir):
                  'VRC01-like paired light chain VL gene distributions': vrc01like_lpairs,
                  'strict nonVRC01-like paired light chain VL gene distributions': strict_nonvrc01like_lpairs,
                  'nonVRC01-like paired light chain VL gene distributions': nonvrc01like_lpairs}
-    for sname in sequences.keys():
+    for sname in list(sequences.keys()):
         data = {}
         seqs = sequences[sname]
         vl_lengths = {}
@@ -372,7 +372,7 @@ def vrc01_summary_output_part2(pairs, output_dir):
             #     group = 'None'
             vl_genes = [s['v_gene']['gene'] for s in sample_seqs if s['chain'] in ['kappa', 'lambda']]
             vl_counts = Counter(vl_genes)
-            norm_vl_counts = {k: 1. * v / sum(vl_counts.values()) for k, v in vl_counts.items()}
+            norm_vl_counts = {k: 1. * v / sum(vl_counts.values()) for k, v in list(vl_counts.items())}
             norm_vl_counts['total sequences'] = sum(vl_counts.values())
             # name = '{}_{}'.format(group, sample)
             name = sample
@@ -395,13 +395,13 @@ def vrc01_summary_output_part2(pairs, output_dir):
 
 def _get_sample(s):
     slist = []
-    if 'experiment' in s.keys():
+    if 'experiment' in list(s.keys()):
         slist.append(s['experiment'])
-    if 'group' in s.keys():
+    if 'group' in list(s.keys()):
         slist.append(s['group'])
-    if 'subject' in s.keys():
+    if 'subject' in list(s.keys()):
         slist.append(s['subject'])
-    if 'timepoint' in s.keys():
+    if 'timepoint' in list(s.keys()):
         slist.append(s['timepoint'])
     return '|'.join(slist)
 
@@ -471,7 +471,7 @@ def vrc01_summary_output_part4(pairs, output_dir):
                  'strict nonVRC01-like paired light chain indel distributions': strict_nonvrc01like_lpairs,
                  'nonVRC01-like paired heavy chain indel distributions': nonvrc01like_hpairs,
                  'nonVRC01-like paired light chain indel distributions': nonvrc01like_lpairs}
-    for sname in sequences.keys():
+    for sname in list(sequences.keys()):
         data = {}
         seqs = sequences[sname]
         for sample in samples:
@@ -487,8 +487,8 @@ def vrc01_summary_output_part4(pairs, output_dir):
             #     group = 'None'
             ins_dist = Counter([indel['len'] for s in ins_seqs for indel in s['v_ins']])
             del_dist = Counter([indel['len'] for s in del_seqs for indel in s['v_del']])
-            norm_ins_dist = {k: 1. * v / sum(ins_dist.values()) for k, v in ins_dist.items()}
-            norm_del_dist = {k: 1. * v / sum(del_dist.values()) for k, v in del_dist.items()}
+            norm_ins_dist = {k: 1. * v / sum(ins_dist.values()) for k, v in list(ins_dist.items())}
+            norm_del_dist = {k: 1. * v / sum(del_dist.values()) for k, v in list(del_dist.items())}
             norm_ins_dist['total sequences'] = len(sample_seqs)
             norm_ins_dist['indel sequences'] = len(ins_seqs)
             norm_del_dist['total sequences'] = len(sample_seqs)
@@ -539,23 +539,28 @@ def vrc01_class_mutation_count(seqs, vrc01_class=True, minvrc01=True, min12a21=T
         aln_seq = [seq for seq in aln if seq.id == s.id][0]
         aln_gl = [seq for seq in aln if seq.id == glvrc01_name][0]
         aln_vrc01s = [seq for seq in aln if seq.id in vrc01_names]
-        if vgene_only:
-            total.append(sum([_s != g for _s, g in zip(str(aln_seq.seq), str(aln_gl.seq)) if g != '-']))
-        else:
-            total.append(sum([s != g for s, g in zip(str(aln_seq.seq), str(aln_gl.seq))]))
+        # if vgene_only:
+            # total.append(sum([_s != _g for _s, _g in zip(str(aln_seq.seq), str(aln_gl.seq)) if all([_g != '-', _s != '-'])]))
+        # else:
+            # total.append(sum([_s != _g for _s, _g in zip(str(aln_seq.seq), str(aln_gl.seq)) if _s != '-']))
         all_shared = {}
         for vrc01 in aln_vrc01s:
             _shared = []
+            _total = 0
             for q, g, v in zip(str(aln_seq.seq), str(aln_gl.seq), str(vrc01.seq)):
-                if vgene_only and g == '-' and v == '-':
+                if q == '-':
                     _shared.append(False)
-                elif q == v and q != g:
-                    _shared.append(True)
+                elif vgene_only and g == '-' and v == '-':
+                    _shared.append(False)
+                elif q != g:
+                    _total += 1
+                    if q == v:
+                        _shared.append(True)
                 else:
                     _shared.append(False)
             all_shared[vrc01.id] = _shared
         any_shared = 0
-        for pos in zip(*all_shared.values()):
+        for pos in zip(*list(all_shared.values())):
             if any(pos):
                 any_shared += 1
         shared.append(any_shared)
@@ -673,7 +678,7 @@ def get_vrc01_class_sequences(chain='heavy', vgene_only=True, only_include=None)
         light = []
     seqs = heavy if chain == 'heavy' else light
     if only_include is not None:
-        if type(only_include) in [str, unicode]:
+        if type(only_include) in [str, str]:
             only_include = [only_include, ]
         seqs = [s for s in seqs if s[0] in only_include]
     return [Sequence(s) for s in seqs]
@@ -695,13 +700,27 @@ def get_min12a21_sequence(vgene_only=True):
     return Sequence(min12a21)
 
 
-def shared_mutation_kde_plot(xs, ys, cmaps, figfile=None, figsize=(8, 8), n_levels=10, alpha=0.6,
+def shared_mutation_kde_plot(xs, ys, cmaps, figfile=None, figsize=(8, 8), n_levels=10, alpha=0.6, xlim=None, ylim=None,
                              y_label='VRC01-class mutations', x_label='Total amino acid mutations', labelsize=14,
-                             scatter=True, x_jitter=0.15, y_jitter=0.15, scatter_color='grey', scatter_alpha=0.4):
+                             scatter=True, x_jitter=0.15, y_jitter=0.15, scatter_colors=None, scatter_alphas=None):
     sns.set_style('whitegrid')
     f, ax = plt.subplots(figsize=figsize)
 
-    for x, y, cmap in izip_longest(xs, ys, cmaps):
+    # set scatter colors
+    if scatter_colors is None:
+        scatter_colors = ['grey'] * len(cmaps)
+    # set scatter alphas
+    if type(scatter_alphas) in [int, float]:
+        scatter_alphas = [scatter_alphas] + len(cmaps)
+    if scatter_alphas is None:
+        scatter_alphas = [0.4] * len(cmaps)
+    # set x/y axis limits
+    if xlim is None:
+        xlim = [0, max([max(x) for x in xs]) + 1]
+    if ylim is None:
+        ylim = [0, max([max(y) for y in ys]) + 1]
+
+    for x, y, cmap, scatcolor, scatalpha in zip_longest(xs, ys, cmaps, scatter_colors, scatter_alphas):
         x = np.array(x)
         y = np.array(y)
         ax = sns.kdeplot(x, y, cmap=cmap, shade=True,
@@ -712,10 +731,10 @@ def shared_mutation_kde_plot(xs, ys, cmaps, figfile=None, figsize=(8, 8), n_leve
             random.seed(1234)
             plt.scatter([_x + random.uniform(-x_jitter, x_jitter) for _x in x],
                         [_y + random.uniform(-y_jitter, y_jitter) for _y in y],
-                        alpha=scatter_alpha, color=scatter_color)
+                        alpha=scatalpha, color=scatcolor)
     axes = plt.gca()
-    axes.set_xlim([0, max(x) + 1])
-    axes.set_ylim([0, max(y) + 1])
+    axes.set_xlim(xlim)
+    axes.set_ylim(ylim)
     ax.tick_params(axis='x', labelsize=12)
     ax.tick_params(axis='y', labelsize=12)
     plt.ylabel(y_label, size=labelsize)
@@ -726,9 +745,9 @@ def shared_mutation_kde_plot(xs, ys, cmaps, figfile=None, figsize=(8, 8), n_leve
         plt.savefig(figfile)
 
 
-def shared_mutation_2dhist_plot(x, y, cmap, figfile=None, figsize=None, figsize_denom=4, n_levels=10, alpha=1.0, x_lim=None, y_lim=None,
+def shared_mutation_2dhist_plot(x, y, cmap, figfile=None, figsize=None, figsize_denom=4, n_levels=10, alpha=1.0, xlim=None, ylim=None,
                                 y_label='VRC01-class mutations', x_label='Total amino acid mutations', labelsize=14,
-                                tick_labelsize=12, pad=-4, show_values=False):
+                                tick_labelsize=12, pad=-4, show_values=False, show_figure=True):
     # adjust the inputs to make them iterable
     if type(x[0]) in [int, float, np.int64, np.float64]:
         x = [x]
@@ -738,8 +757,8 @@ def shared_mutation_2dhist_plot(x, y, cmap, figfile=None, figsize=None, figsize_
     f, ax = plt.subplots(figsize=figsize)
     # make the plots
     for _x, _y, _cmap in zip(x, y, cmap):
-        bin_x = max(_x) + 2 if x_lim is None else x_lim[1] + 2
-        bin_y = max(_y) + 2 if y_lim is None else y_lim[1] + 2
+        bin_x = max(_x) + 2 if xlim is None else xlim[1] + 2
+        bin_y = max(_y) + 2 if ylim is None else ylim[1] + 2
         bins = [[i - 0.5 for i in range(bin_y)], [i - 0.5 for i in range(bin_x)]]
         data, x_edges, y_edges = np.histogram2d(_y, _x, bins=bins)
         data = data[::-1]
@@ -748,22 +767,22 @@ def shared_mutation_2dhist_plot(x, y, cmap, figfile=None, figsize=None, figsize_
         mask = np.array([[val == 0 for val in subl] for subl in data])
         ax = sns.heatmap(data, cmap=_cmap, square=True, cbar=False, mask=mask,
                          linewidths=1, linecolor='w', alpha=alpha)
-    if x_lim is None:
-        x_lim = [0, len(data[0])]
+    if xlim is None:
+        xlim = [0, len(data[0])]
     else:
-        x_lim = [x_lim[0], x_lim[1]]
-    if y_lim is None:
-        y_lim = [0, len(data)]
+        xlim = [xlim[0], xlim[1]]
+    if ylim is None:
+        ylim = [0, len(data)]
     else:
-        y_lim = [y_lim[0], y_lim[1]]
-    ax.set_xlim(x_lim)
-    ax.set_ylim(y_lim)
+        ylim = [ylim[0], ylim[1]]
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     # format ticks and spines
-    x_ticks = [t for t in range(x_lim[0], x_lim[1] + 1)]
+    x_ticks = [t for t in range(xlim[0], xlim[1] + 1)]
     ax.set_xticks([t + 0.5 for t in x_ticks])
     x_ticklabels = [str(l) if l % 2 == 0 else '' for l in x_ticks]
     ax.set_xticklabels(x_ticklabels, rotation=0)
-    y_ticks = [t for t in range(y_lim[0], y_lim[1] + 1)]
+    y_ticks = [t for t in range(ylim[0], ylim[1] + 1)]
     ax.set_yticks([t + 0.5 for t in y_ticks])
     y_ticklabels = [str(l) if l % 2 == 0 else '' for l in y_ticks]
     ax.set_yticklabels(y_ticklabels, rotation=0)
@@ -793,8 +812,9 @@ def shared_mutation_2dhist_plot(x, y, cmap, figfile=None, figsize=None, figsize_
     ax.yaxis.set_tick_params(which='major', direction='out', length=3,
                              color='k', width=1, top='off', pad=pad)
 
-    plt.tight_layout()
     if figfile is None:
+        plt.tight_layout()
         plt.show()
-    else:
+    elif show_figure:
+        plt.tight_layout()
         plt.savefig(figfile)
