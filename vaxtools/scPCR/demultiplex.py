@@ -81,7 +81,7 @@ def parse_args():
                         Default is <output_dir>/demultiplex.log.")
     parser.add_argument('-j', '-jsons', dest='jsons', default=None,
                         help='Path to a JSON file or a directory of JSON files.')
-    parser.add_argument('-d', '--database', dest='db', required=True,
+    parser.add_argument('-d', '--database', dest='db', default=None,
                         help="Name of the MongoDB database containing un-demultiplexed sequences. Required.")
     parser.add_argument('-c', '--collection', dest='collection', default=None,
                         help="Name of the MongoDB collection to query. \
@@ -115,12 +115,13 @@ def parse_args():
                         help="File containing the indexes, one per line. \
                         File must have either 96 or 384 indexes, and indexes should be in columnar order \
                         (A01, B01, C01, etc...). Only required if not using built-in indexes (via --index).")
-    parser.add_argument('-M', '--plate-map', dest='plate_map', required=True,
+    parser.add_argument('-M', '--plate-map', dest='plate_map', default=None,
                         help="Plate map. Can either be provided as a list of well names \
                         (one per line, in row order starting at A01) or as a list of wells \
                         and well names (one per line, separated by white space) in any order. \
                         If providing simply a list of well names and not every well is used, \
-                        leave blank lines for unused wells.")
+                        leave blank lines for unused wells. If not provided, the plates will be \
+                        named using the collection or JSON file from which the sequences are derived.")
     parser.add_argument('--index-position', default='start', choices=['start', 'end'],
                         help="Position of the indexes. Choices are 'start', if they're \
                         at the start of the raw merged read (start of read 1) or 'end' if \
@@ -578,7 +579,12 @@ def get_builtin_index_file(index, plate_num):
     return index_files[i]
 
 
-def parse_plate_map(platemap_file):
+def parse_plate_map(platemap_file, collections=None, files=None):
+    if platemap_file is None:
+        if collections is not None:
+            return {c: [c] for c in collections}
+        else:
+            return {f.rstrip('.json'): [f.rstrip('.json')] for f in files}
     plate_data = []
     plate_map = {}
     with open(platemap_file) as f:
@@ -741,7 +747,7 @@ def main(args, logfile=None):
     if all([args.jsons is None, args.db is not None]):
         db_or_dir = mongodb.get_db(args.db, ip=args.ip, port=args.port,
                                    user=args.user, password=args.password)
-        plate_map = parse_plate_map(args.plate_map)
+        plate_map = parse_plate_map(args.plate_map, collections=collections_or_files)
         collections_or_files = mongodb.get_collections(db, args.collection,
             prefix=args.collection_prefix, suffix=args.collection_suffix)
     # set up input directory and files (if retrieving from JSONs)
@@ -752,6 +758,7 @@ def main(args, logfile=None):
         else:
             db_or_dir = os.path.dirname(args.jsons)
             collections_or_files = [os.path.basename(args.jsons), ]
+        platemap = parse_platemap(args.plate_map, files=collections_or_files)
     for collection_or_file in collections_or_files:
         cof_name = collection_or_file.rstrip('.json') if args.jsons is not None else collection_or_file
         if cof_name not in plate_map:
