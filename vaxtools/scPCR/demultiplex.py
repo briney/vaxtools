@@ -194,7 +194,9 @@ class Args(object):
         minimum_well_size='relative', minimum_max_well_size=250, minimum_cluster_fraction='largest',
         minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=True, debug=False):
         super(Args, self).__init__()
-        if not all([output is not None, temp is not None, any([db is not None, jsons is not None]):
+        if not all([output is not None,
+                    temp is not None,
+                    any([db is not None, jsons is not None])):
             logger.critical("You must supply an output directory, \
                 a temp directory and either the name of a MongoDB database or a path to JSON file(s).")
             sys.exit(1)
