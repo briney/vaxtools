@@ -31,7 +31,7 @@ from __future__ import print_function, unicode_literals
 import os
 import warnings
 
-from abtools import log
+from abutils.utils import log
 
 from vaxtools.scPCR import demultiplex
 
