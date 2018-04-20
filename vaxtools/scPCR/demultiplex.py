@@ -238,7 +238,7 @@ class Args(object):
 ###############
 
 
-def get_json_seqs(json, chain, score_cutoff):
+def get_json_sequences(json, chain, score_cutoff):
     seqs = []
     keys = ['seq_id', 'raw_input', 'raw_query', 'oriented_input', 'vdj_nt']
     with open(json) as f:
@@ -777,17 +777,17 @@ def main(args, logfile=None):
                 score_cutoff = args.score_cutoff_heavy if chain == 'heavy' else args.score_cutoff_light
                 if all([args.jsons is None, args.db is not None]):
                     logger.info('Querying for {} chain sequences'.format(chain))
-                    sequences = get_sequences(db_or_dir,
-                                              collection_or_file,
-                                              chain,
-                                              score_cutoff)
+                    sequences = get_mongodb_sequences(db_or_dir,
+                                                      collection_or_file,
+                                                      chain,
+                                                      score_cutoff)
                     logger.info('QUERY RESULTS: {} {} chain sequences met the quality threshold'.format(
                         len(sequences), chain.lower()))
                 else:
                     logger.info('Reading {} chain sequences from JSON file'.format(chain))
-                    sequences = get_sequences(os.path.join(db_or_dir, collection_or_file),
-                                              chain,
-                                              score_cutoff)
+                    sequences = get_json_sequences(os.path.join(db_or_dir, collection_or_file),
+                                                   chain,
+                                                   score_cutoff)
                     logger.info('RESULTS: {} {} chain sequences met the quality threshold'.format(
                         len(sequences), chain.lower()))
                 bins = bin_by_index(sequences,
