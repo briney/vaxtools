@@ -79,6 +79,8 @@ def parse_args():
     parser.add_argument('-l', '--log', dest='log',
                         help="Location for the log file. \
                         Default is <output_dir>/demultiplex.log.")
+    parser.add_argument('-j', '-jsons', dest='jsons', default=None,
+                        help='Path to a JSON file or a directory of JSON files.')
     parser.add_argument('-d', '--database', dest='db', required=True,
                         help="Name of the MongoDB database containing un-demultiplexed sequences. Required.")
     parser.add_argument('-c', '--collection', dest='collection', default=None,
@@ -185,22 +187,23 @@ def parse_args():
 
 class Args(object):
     """docstring for Args"""
-    def __init__(self, output=None, temp=None, raw_sequence_dir=None, alignment_pixel_dir=None, log=None,
+    def __init__(self, output=None, temp=None, raw_sequence_dir=None, alignment_pixel_dir=None, log=None, jsons=None,
         db=None, collection=None, collection_prefix=None, collection_suffix=None, ip='localhost', port=27017,
         user=None, password=None, index=None, index_file=None, plate_map=None, index_position='start', index_length=0,
         index_reverse_complement=False, score_cutoff_heavy=200, score_cutoff_light=100, cdhit_threshold=0.96,
         minimum_well_size='relative', minimum_max_well_size=250, minimum_cluster_fraction='largest',
         minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=True, debug=False):
         super(Args, self).__init__()
-        if not all([output, temp, db]):
+        if not all([output is not None, temp is not None, any([db is not None, jsons is not None]):
             logger.critical("You must supply an output directory, \
-                a temp directory and the name of a MongoDB database.")
+                a temp directory and either the name of a MongoDB database or a path to JSON file(s).")
             sys.exit(1)
         self.output = output
         self.temp_dir = temp
         self.raw_sequence_dir = raw_sequence_dir
         self.alignment_pixel_dir = alignment_pixel_dir
         self.log = log
+        self.jsons = jsons
         self.db = db
         self.collection = collection
         self.collection_prefix = collection_prefix
@@ -743,7 +746,7 @@ def main(args, logfile=None):
     elif args.jsons is not None:
         if os.path.isdir(args.jsons):
             db_or_dir = args.jsons
-            collections_or_files = [os.path.basename(f) for f in list_files(args.jsons)]
+            collections_or_files = [os.path.basename(f) for f in list_files(args.jsons, extension='json')]
         else:
             db_or_dir = os.path.dirname(args.jsons)
             collections_or_files = [os.path.basename(args.jsons), ]
