@@ -101,7 +101,7 @@ def parse_args():
     parser.add_argument('--plate-name-delimiter', default=None,
                         help='Delimiter at which the collection or JSON file name will be split \
                         to make the plate name portion of the sequence ID.')
-    parser.add_argument('--plate-name-delimiter-position', default=1,
+    parser.add_argument('--plate-name-delimiter-position', default=1, type=int,
                         help='Position of the plate name delimiter at which the name will be truncated. \
                         Positive values will be truncated at the Nth position (1-based indexing) from the \
                         start of the collection or JSON file name. Negative values will be truncated at the \
@@ -150,9 +150,9 @@ def parse_args():
                         help="V-gene alignment score cutoff for kappa/lambda chains. \
                         Alignment score must be equal to or higher than cutoff to be considered for clustering. \
                         Default is 100.")
-    parser.add_argument('--cdhit-threshold', default=0.96, type=float,
+    parser.add_argument('--cdhit-threshold', default=0.9, type=float,
                         help="Threshold for CD-HIT clustering. \
-                        Default is 0.96.")
+                        Default is 0.9.")
     parser.add_argument('--minimum-well-size', default='relative',
                         help="Minimum size of a CD-HIT cluster of sequences. \
                         Centroids will not be determined for clusters below this cutoff. \
@@ -200,8 +200,9 @@ class Args(object):
     def __init__(self, output=None, temp=None, raw_sequence_dir=None, alignment_pixel_dir=None, log=None, jsons=None,
         db=None, collection=None, collection_prefix=None, collection_suffix=None, ip='localhost', port=27017,
         user=None, password=None, index=None, index_file=None, plate_map=None, index_position='start', index_length=0,
-        index_reverse_complement=False, score_cutoff_heavy=200, score_cutoff_light=100, cdhit_threshold=0.96,
+        index_reverse_complement=False, score_cutoff_heavy=200, score_cutoff_light=100, cdhit_threshold=0.9,
         minimum_well_size='relative', minimum_max_well_size=250, minimum_cluster_fraction='largest',
+        plate_name_delimiter=None, plate_name_delimiter_position=1,
         minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=True, debug=False):
         super(Args, self).__init__()
         if not all([output is not None,
@@ -220,6 +221,8 @@ class Args(object):
         self.collection = collection
         self.collection_prefix = collection_prefix
         self.collection_suffix = collection_suffix
+        self.plate_name_delimiter = plate_name_delimiter
+        self.plate_name_delimiter_position = plate_name_delimiter_position
         self.ip = ip
         self.port = int(port)
         self.user = user
@@ -838,10 +841,7 @@ def main(args, logfile=None):
                         if args.plate_name_delimiter is not None:
                             delim = args.plate_name_delimiter
                             pos = args.plate_name_delimiter_position
-                            if args.plate_name_delimiter_position > 0:
-                                truncated_name = delim.join(plate_name.split(delim)[:pos])
-                            else:
-                                truncated_name = delim.join(plate_name.split(delim)[pos:])
+                            truncated_name = delim.join(plate_name.split(delim)[:pos])
                             consentroid_name = '{}-{}'.format(truncated_name, b)
                         else:
                             consentroid_name = '{}-{}'.format(plate_name, b)
