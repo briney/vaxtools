@@ -98,6 +98,15 @@ def parse_args():
                         and the collections from each experiment should be processed separately. \
                         Default is None, which (unless <collection> or <collection-prefix>is provided) \
                         processes all collections.")
+    parser.add_argument('--plate-name-delimiter', default=None,
+                        help='Delimiter at which the collection or JSON file name will be split \
+                        to make the plate name portion of the sequence ID.')
+    parser.add_argument('--plate-name-delimiter-position', default=1,
+                        help='Position of the plate name delimiter at which the name will be truncated. \
+                        Positive values will be truncated at the Nth position (1-based indexing) from the \
+                        start of the collection or JSON file name. Negative values will be truncated at the \
+                        Nth position of the delimiter (1-based indexing) from the end of the collection or \
+                        JSON file name.')
     parser.add_argument('-i', '--ip', dest='ip', default='localhost',
                         help="IP address for the MongoDB server.  Defaults to 'localhost'.")
     parser.add_argument('--port', dest='port', default=27017, type=int,
@@ -809,7 +818,7 @@ def main(args, logfile=None):
                         continue
                     print_bin_info(b)
                     if args.raw_sequence_dir is not None:
-                        rs_handle = open(os.path.join(args.raw_sequence_dir, '{}-{}_{}'.format(plate_name, b, chain)), 'write')
+                        rs_handle = open(os.path.join(args.raw_sequence_dir, '{}-{}_{}'.format(plate_name, b, chain)), 'w')
                         rs_handle.write('\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in bins[b]]))
                         rs_handle.close()
                     consentroid = cdhit_clustering(bins[b],
@@ -826,7 +835,16 @@ def main(args, logfile=None):
                                                    args.cdhit_threshold,
                                                    chain)
                     if consentroid:
-                        consentroid_name = '{}-{}'.format(plate_name, b)
+                        if args.plate_name_delimiter is not None:
+                            delim = args.plate_name_delimiter
+                            pos = args.plate_name_delimiter_position
+                            if args.plate_name_delimiter_position > 0:
+                                truncated_name = delim.join(plate_name.split(delim)[:pos])
+                            else:
+                                truncated_name = delim.join(plate_name.split(delim)[pos:])
+                            consentroid_name = '{}-{}'.format(truncated_name, b)
+                        else:
+                            consentroid_name = '{}-{}'.format(plate_name, b)
                         plate_seqs.append((consentroid_name, consentroid))
                 log_output(bins, plate_seqs, min_well_size)
                 # all_seqs.extend(plate_seqs)
