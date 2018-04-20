@@ -758,7 +758,7 @@ def main(args, logfile=None):
         else:
             db_or_dir = os.path.dirname(args.jsons)
             collections_or_files = [os.path.basename(args.jsons), ]
-        platemap = parse_platemap(args.plate_map, files=collections_or_files)
+        platemap = parse_plate_map(args.plate_map, files=collections_or_files)
     for collection_or_file in collections_or_files:
         cof_name = collection_or_file.rstrip('.json') if args.jsons is not None else collection_or_file
         if cof_name not in plate_map:
