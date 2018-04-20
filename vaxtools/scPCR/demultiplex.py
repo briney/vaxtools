@@ -196,7 +196,7 @@ class Args(object):
         super(Args, self).__init__()
         if not all([output is not None,
                     temp is not None,
-                    any([db is not None, jsons is not None])):
+                    any([db is not None, jsons is not None])]):
             logger.critical("You must supply an output directory, \
                 a temp directory and either the name of a MongoDB database or a path to JSON file(s).")
             sys.exit(1)
