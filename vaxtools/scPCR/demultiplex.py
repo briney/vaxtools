@@ -366,7 +366,7 @@ def check_cluster_fraction(clust_size, num_well_seqs,
 
 def make_cdhit_input(seqs, temp_dir):
     fastas = ['>{}\n{}'.format(s[0], s[1]) for s in seqs]
-    infile = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+    infile = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, mode='w')
     infile.write('\n'.join(fastas))
     infile.close()
     return infile
