@@ -26,6 +26,7 @@
 from __future__ import print_function, absolute_import
 
 import glob
+import json
 import logging
 import math
 import os
@@ -55,7 +56,7 @@ from . import pixel
 
 from abutils.utils import log, mongodb
 from abutils.utils.alignment import mafft
-from abutils.utils.pipeline import make_dir
+from abutils.utils.pipeline import make_dir, list_files
 
 
 def parse_args():
@@ -231,7 +232,21 @@ class Args(object):
 ###############
 
 
-def get_sequences(db, collection, chain, score_cutoff):
+def get_json_seqs(json, chain, score_cutoff):
+    seqs = []
+    keys = ['seq_id', 'raw_input', 'raw_query', 'oriented_input', 'vdj_nt']
+    with open(json) as f:
+        for line in f:
+            if line.strip():
+                j = json.loads(line.strip())
+                if all([j['chain'] == chain, j['prod': 'yes', j['v_gene']['score'] >= score_cutoff]]):
+                    raw_field = 'raw_input' if 'raw_input' in j else 'raw_query'
+                    seq = {key: j[key] for key in keys if j.get(key, None) is not None}
+                    seqs.append(seq)
+    return seqs
+
+
+def get_mongodb_sequences(db, collection, chain, score_cutoff):
     seqs = db[collection].find({'chain': chain, 'prod': 'yes', 'v_gene.score': {'$gte': score_cutoff}},
                                {'seq_id': 1, 'raw_input': 1, 'raw_query': 1, 'oriented_input': 1, 'vdj_nt': 1})
     return [s for s in seqs]
@@ -717,34 +732,52 @@ def main(args, logfile=None):
     log_options(args, logfile=logfile)
     make_directories(args)
     open(args.output, 'w').write('')
-    db = mongodb.get_db(args.db, ip=args.ip, port=args.port,
-                      user=args.user, password=args.password)
-    plate_map = parse_plate_map(args.plate_map)
-    # all_seqs = []
-    collections = mongodb.get_collections(db, args.collection,
-        prefix=args.collection_prefix, suffix=args.collection_suffix)
-    for collection in collections:
-        if collection not in plate_map:
+    # set up db name and collections (if retrieving from MongoDB)
+    if all([args.jsons is None, args.db is not None]):
+        db_or_dir = mongodb.get_db(args.db, ip=args.ip, port=args.port,
+                                   user=args.user, password=args.password)
+        plate_map = parse_plate_map(args.plate_map)
+        collections_or_files = mongodb.get_collections(db, args.collection,
+            prefix=args.collection_prefix, suffix=args.collection_suffix)
+    # set up input directory and files (if retrieving from JSONs)
+    elif args.jsons is not None:
+        if os.path.isdir(args.jsons):
+            db_or_dir = args.jsons
+            collections_or_files = [os.path.basename(f) for f in list_files(args.jsons)]
+        else:
+            db_or_dir = os.path.dirname(args.jsons)
+            collections_or_files = [os.path.basename(args.jsons), ]
+    for collection_or_file in collections_or_files:
+        cof_name = collection_or_file.rstrip('.json') if args.jsons is not None else collection_or_file
+        if cof_name not in plate_map:
             logger.info('\n\n{} was not found in the supplied plate map file.'.format(
-                collection))
+                cof_name))
             continue
-        plate_names = plate_map[collection]
+        plate_names = plate_map[cof_name]
         for plate_num, plate_name in enumerate(plate_names):
             if plate_name is None:
                 continue
-            print_plate_info(plate_name, collection)
+            print_plate_info(plate_name, cof_name)
             indexes = get_indexes(args.index, args.index_file, args.index_length, plate_num)
             for chain in ['heavy', 'kappa', 'lambda']:
                 plate_seqs = []
                 logger.info('')
-                logger.info('Querying for {} chain sequences'.format(chain))
                 score_cutoff = args.score_cutoff_heavy if chain == 'heavy' else args.score_cutoff_light
-                sequences = get_sequences(db,
-                                          collection,
-                                          chain,
-                                          score_cutoff)
-                logger.info('QUERY RESULTS: {} {} chain sequences met the quality threshold'.format(
-                    len(sequences), chain.lower()))
+                if all([args.jsons is None, args.db is not None]):
+                    logger.info('Querying for {} chain sequences'.format(chain))
+                    sequences = get_sequences(db_or_dir,
+                                              collection_or_file,
+                                              chain,
+                                              score_cutoff)
+                    logger.info('QUERY RESULTS: {} {} chain sequences met the quality threshold'.format(
+                        len(sequences), chain.lower()))
+                else:
+                    logger.info('Reading {} chain sequences from JSON file'.format(chain))
+                    sequences = get_sequences(os.path.join(db_or_dir, collection_or_file),
+                                              chain,
+                                              score_cutoff)
+                    logger.info('RESULTS: {} {} chain sequences met the quality threshold'.format(
+                        len(sequences), chain.lower()))
                 bins = bin_by_index(sequences,
                                     indexes,
                                     args.index_length,
