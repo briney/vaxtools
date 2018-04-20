@@ -245,7 +245,7 @@ def get_json_sequences(json_file, chain, score_cutoff):
         for line in f:
             if line.strip():
                 j = json.loads(line.strip())
-                if all([j['chain'] == chain, j['prod']: 'yes', j['v_gene']['score'] >= score_cutoff]):
+                if all([j['chain'] == chain, j['prod'] == 'yes', j['v_gene']['score'] >= score_cutoff]):
                     # raw_field = 'raw_input' if 'raw_input' in j else 'raw_query'
                     seq = {key: j[key] for key in keys if j.get(key, None) is not None}
                     seqs.append(seq)
