@@ -238,10 +238,10 @@ class Args(object):
 ###############
 
 
-def get_json_sequences(json, chain, score_cutoff):
+def get_json_sequences(json_file, chain, score_cutoff):
     seqs = []
     keys = ['seq_id', 'raw_input', 'raw_query', 'oriented_input', 'vdj_nt']
-    with open(json) as f:
+    with open(json_file) as f:
         for line in f:
             if line.strip():
                 j = json.loads(line.strip())
