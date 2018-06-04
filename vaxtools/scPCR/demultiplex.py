@@ -970,8 +970,9 @@ def main(args, logfile=None):
                     logger.info('FAILED')
                     continue
                 consentroid = cdhit_clustering(seqs, b, input_data.name, len(sequences), chain, args)
-                plate_seqs.append(consentroid)
-                write_consentroid(consentroid, args)
+                if consentroid is not None:
+                    plate_seqs.append(consentroid)
+                    write_consentroid(consentroid, args)
             log_output(bins, plate_seqs, min_well_size)
             logger.info('')
     logger.info('')
