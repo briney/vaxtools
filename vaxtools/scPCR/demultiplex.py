@@ -349,23 +349,22 @@ def cdhit_clustering(seqs, bin_id, plate_name, num_plate_seqs, chain, args):
             logger.info('identifying centroid sequence...')
             consentroid = cdhit_result.largest_cluster.centroid
         consentroid.id = '{}-{}'.format(plate_name, bin_id)
-        # logger.info('PASSED')
+        if args.raw_sequence_dir is not None:
+            logger.info('Writing raw sequences to file...')
+            write_raw_sequences(seqs, plate_name, bin_id, chain, args)
+        if args.alignment_pixel_dir is not None:
+            logger.info('Making alignment pixel plot...')
+            cluster_seq_ids = [s.id for s in cdhit_result.largest_cluster.sequences]
+            pixel_file = os.path.join(args.alignment_pixel_dir, '{}-{}_{}.png'.format(plate_name, bin_id, chain))
+            pixel.make_pixel(seqs, pixel_file, consentroid=consentroid, cluster_seq_ids=cluster_seq_ids)
+        logger.info('PASSED')
     else:
-        # logger.info('FALILED')
         consentroid = None
-    if args.raw_sequence_dir is not None:
-        logger.info('Writing raw sequences to file...')
-        write_raw_sequences(seqs, plate_name, bin_id, chain, args)
-    if args.alignment_pixel_dir is not None:
-        logger.info('Making alignment pixel plot...')
-        cluster_seq_ids = [s.id for s in cdhit_result.largest_cluster.sequences]
-        pixel_file = os.path.join(args.alignment_pixel_dir, '{}-{}_{}.png'.format(plate_name, bin_id, chain))
-        pixel.make_pixel(seqs, pixel_file, consentroid=consentroid, cluster_seq_ids=cluster_seq_ids)
-    log_cluster_info(cdhit_result.clusters, passed, plate_name, bin_id, chain, len(seqs), consentroid, args)
-    if passed:
-         logger.info('PASSED')
-    else:
+        if args.raw_sequence_dir is not None:
+            logger.info('Writing raw sequences to file...')
+            write_raw_sequences(seqs, plate_name, bin_id, chain, args)
         logger.info('FALILED')
+    log_cluster_info(cdhit_result.clusters, passed, plate_name, bin_id, chain, len(seqs), consentroid, args)
     cdhit_result.delete()
     return consentroid
 
