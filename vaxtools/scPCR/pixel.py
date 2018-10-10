@@ -23,30 +23,37 @@
 #
 
 
-def make_pixel(seqs, ffile, temp_dir='/tmp', consentroid=None):
+import math
+import os
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+
+from abutils.core.sequence import Sequence
+from abutils.utils.alignment import mafft
+
+
+def make_pixel(seqs, ffile, consentroid, cluster_seq_ids=None):
 	nuc_vals = {'-': 0,
 				'A': 1,
 				'C': 2,
 				'G': 3,
 				'T': 4}
-	colors = {'-': 'w',
-			  'A': '#E12427',
-			  'C': '#3B7FB6',
-			  'G': '#63BE7A',
-			  'T': '#E1E383'}
 	cmap = ListedColormap(['w', '#E12427', '#3B7FB6', '#63BE7A', '#E1E383', 'k'])
 	data = []
-	aligned_seqs = _pixel_msa(consentroid, seqs, temp_dir)
+	if cluster_seq_ids is None:
+		cluster_seq_ids = []
+	aligned_seqs = _pixel_msa(consentroid, seqs)
 	for seq in aligned_seqs:
-		seq_data = []
-		s_id = seq[0]
-		sequence = seq[1]
-		if s_id == 'consentroid':
-			sequence = 'XXXXXX--' + sequence
+		if seq.id == consentroid.id:
+			sequence = 'XXXXXXXXXX--' + seq.sequence
+		elif seq.id in cluster_seq_ids:
+			sequence = '---XXXX-----' + seq.sequence
 		else:
-			sequence = '--------' + sequence
-		for res in sequence:
-			seq_data.append(nuc_vals.get(res.upper(), 5))
+			sequence = '------------' + seq.sequence
+		seq_data = [nuc_vals.get(res.upper(), 6) for res in sequence]
 		data.append(seq_data)
 	mag = (magnitude(len(data[0])) + magnitude(len(data))) / 2
 	x_dim = len(data[0]) / 10**mag
@@ -58,41 +65,45 @@ def make_pixel(seqs, ffile, temp_dir='/tmp', consentroid=None):
 	plt.close()
 
 
-def _pixel_msa(consentroid, seqs, temp_dir):
-	fasta = ''
-	if consentroid is not None:
-		fasta += '>consentroid\n{}\n'.format(consentroid)
-	fasta += '\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in seqs])
+def _pixel_msa(consentroid, seqs):
+	seqs_for_aln = seqs + [consentroid]
+	aln = mafft(seqs_for_aln)
+	return [Sequence(s) for s in aln]
 
-	fasta_file = os.path.join(temp_dir, 'alignment_input.fasta')
-	alignment_file = os.path.join(temp_dir, 'alignment.aln')
-	open(fasta_file, 'w').write(fasta)
+	# fasta = ''
+	# if consentroid is not None:
+	# 	fasta += '>consentroid\n{}\n'.format(consentroid)
+	# fasta += '\n'.join(['>{}\n{}'.format(s[0], s[1]) for s in seqs])
 
-	alignment_file = do_msa(fasta_file, alignment_file)
+	# fasta_file = os.path.join(temp_dir, 'alignment_input.fasta')
+	# alignment_file = os.path.join(temp_dir, 'alignment.aln')
+	# open(fasta_file, 'w').write(fasta)
 
-	# if len(seqs) < 100:
-	# 	muscle_cline = 'muscle -clwstrict'
-	# elif len(seqs) < 1000:
-	# 	muscle_cline = 'muscle -clwstrict -maxiters 2'
-	# else:
-	# 	muscle_cline = 'muscle -clwstrict -maxiters 1 -diags'
-	# muscle = sp.Popen(str(muscle_cline),
-	# 				  stdin=sp.PIPE,
-	# 				  stdout=sp.PIPE,
-	# 				  stderr=sp.PIPE,
-	# 				  universal_newlines=True,
-	# 				  shell=True)
-	# alignment = muscle.communicate(input=fasta)[0]
-	# aln = AlignIO.read(StringIO(alignment), 'clustal')
-	aln = AlignIO.read(open(alignment_file), 'clustal')
-	aln_seqs = []
-	for record in aln:
-		aln_seqs.append((record.id, str(record.seq)))
+	# alignment_file = do_msa(fasta_file, alignment_file)
 
-	os.unlink(fasta_file)
-	os.unlink(alignment_file)
+	# # if len(seqs) < 100:
+	# # 	muscle_cline = 'muscle -clwstrict'
+	# # elif len(seqs) < 1000:
+	# # 	muscle_cline = 'muscle -clwstrict -maxiters 2'
+	# # else:
+	# # 	muscle_cline = 'muscle -clwstrict -maxiters 1 -diags'
+	# # muscle = sp.Popen(str(muscle_cline),
+	# # 				  stdin=sp.PIPE,
+	# # 				  stdout=sp.PIPE,
+	# # 				  stderr=sp.PIPE,
+	# # 				  universal_newlines=True,
+	# # 				  shell=True)
+	# # alignment = muscle.communicate(input=fasta)[0]
+	# # aln = AlignIO.read(StringIO(alignment), 'clustal')
+	# aln = AlignIO.read(open(alignment_file), 'clustal')
+	# aln_seqs = []
+	# for record in aln:
+	# 	aln_seqs.append((record.id, str(record.seq)))
 
-	return aln_seqs
+	# os.unlink(fasta_file)
+	# os.unlink(alignment_file)
+
+	# return aln_seqs
 
 
 def magnitude(x):

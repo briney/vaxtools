@@ -28,7 +28,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from abtools.pipeline import make_dir
+from abutils.utils.pipeline import make_dir
 
 
 def schief_csv_output(pairs, output_file, sep=',', legacy_abstar=True):
