@@ -97,10 +97,10 @@ class JsonData(InputData):
 
     @lazy_property
     def name(self):
+        name = os.path.basename(self.json_file)
         if self.args.plate_map is None:
             delim = self.args.plate_name_delimiter
             pos = self.args.plate_name_delimiter_position
-            name = os.path.basename(self.json_file)
             if delim is None:
                 return name.rstrip('.json')
             else:

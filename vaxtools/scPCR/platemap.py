@@ -190,10 +190,13 @@ def parse_plate_grid(raw_plate):
     # find the column containing row labels
     labelc = 0
     for i in range(len(rp)):
-        column = [r[i] for r in rp]
-        cvals = [c.value for c in column if c.value is not None]
-        if len([c for c in cvals if str(c) in string.ascii_uppercase[:8]]) == 8:
-            labelc = i
+        try:
+            column = [r[i] for r in rp]
+            cvals = [c.value for c in column if c.value is not None]
+            if len([c for c in cvals if str(c) in string.ascii_uppercase[:8]]) == 8:
+                labelc = i
+        except IndexError:
+            continue
     gridc = labelc + 1
     # find the row that contains the column labels
     labelr = 0
