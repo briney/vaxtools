@@ -348,11 +348,14 @@ def cdhit_clustering(seqs, bin_id, plate_name, num_plate_seqs, chain, args):
         else:
             logger.info('identifying centroid sequence...')
             consentroid = cdhit_result.largest_cluster.centroid
-        consentroid.id = '{}-{}'.format(plate_name, bin_id)
+        if consentroid is not None:
+            consentroid.id = '{}-{}'.format(plate_name, bin_id)
+        else:
+            logger.info('Cluster passed validation. Failed to genrate a consensus/centroid. FLAG FOR MANUAL EVALUATION!')
         if args.raw_sequence_dir is not None:
             logger.info('Writing raw sequences to file...')
             write_raw_sequences(seqs, plate_name, bin_id, chain, args)
-        if args.alignment_pixel_dir is not None:
+        if (args.alignment_pixel_dir is not None) and (consentroid is not None):
             logger.info('Making alignment pixel plot...')
             cluster_seq_ids = [s.id for s in cdhit_result.largest_cluster.sequences]
             pixel_file = os.path.join(args.alignment_pixel_dir, '{}-{}_{}.png'.format(plate_name, bin_id, chain))
@@ -974,7 +977,7 @@ def main(args, logfile=None):
                     plate_seqs.append(consentroid)
                     write_consentroid(consentroid, args)
                 else:
-                    logger.info('FAILED TO GENERATE A CONSENSUS SEQUENCE. CHECK FOR ERRORS. IS MAFFT INSTALLED?')
+                    logger.info('FAILED TO GENERATE A CONSENSUS SEQUENCE. CHECK FOR ERRORS.')
             log_output(bins, plate_seqs, min_well_size)
             logger.info('')
     logger.info('')
