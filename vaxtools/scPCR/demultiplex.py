@@ -973,6 +973,8 @@ def main(args, logfile=None):
                 if consentroid is not None:
                     plate_seqs.append(consentroid)
                     write_consentroid(consentroid, args)
+                else:
+                    logger.info('FAILED TO GENERATE A CONSENSUS SEQUENCE. CHECK FOR ERRORS. IS MAFFT INSTALLED?')
             log_output(bins, plate_seqs, min_well_size)
             logger.info('')
     logger.info('')
