@@ -970,7 +970,7 @@ def main(args, logfile=None):
                 logger.info('Minimum well size: {}'.format(min_well_size))
                 logger.info('Total number of sequences: {}'.format(len(seqs)))
                 if len(seqs) < min_well_size:
-                    logger.info('FAILED: THE NUMBER OF SEQUENCES IS THE BELOW {}'.format(min_well_size))
+                    logger.info('FAILED: THE NUMBER OF SEQUENCES IS BELOW {}'.format(min_well_size))
                     continue
                 consentroid = cdhit_clustering(seqs, b, input_data.name, len(sequences), chain, args)
                 if consentroid is not None:
