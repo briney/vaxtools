@@ -349,7 +349,7 @@ def cdhit_clustering(seqs, bin_id, plate_name, num_plate_seqs, chain, args):
             logger.info('identifying centroid sequence...')
             consentroid = cdhit_result.largest_cluster.centroid
         if consentroid is not None:
-            consentroid.id = '{}-{} {}'.format(plate_name, bin_id, cdhit_result.largest_cluster.confidence)
+            consentroid.id = '{}-{} {}'.format(plate_name, bin_id, cdhit_result.confidence)
         else:
             logger.info('Cluster passed validation. Failed to generate a consensus/centroid. FLAG FOR MANUAL EVALUATION!')
         if args.raw_sequence_dir is not None:
