@@ -349,7 +349,7 @@ def cdhit_clustering(seqs, bin_id, plate_name, num_plate_seqs, chain, args):
             logger.info('identifying centroid sequence...')
             consentroid = cdhit_result.largest_cluster.centroid
         if consentroid is not None:
-            consentroid.id = '{}-{} {}'.format(plate_name, bin_id, cdhit_result.confidence())
+            consentroid.id = '{}-{} {} {}'.format(plate_name, bin_id, cdhit_result.largest_cluster.cluster_fraction(), cdhit_result.confidence())
         else:
             logger.info('Cluster passed validation. Failed to generate a consensus/centroid. FLAG FOR MANUAL EVALUATION!')
         if args.raw_sequence_dir is not None:
@@ -383,8 +383,10 @@ def validate_clusters(cdhit_result, num_plate_seqs, args):
         if args.minimum_cluster_fraction == 'largest':
             return True
         cluster_fraction = 1. * cdhit_result.largest_cluster.size / num_well_seqs
+        cdhit_result.largest_cluster.cluster_fraction(cluster_fraction)
         logger.info('Minimum cluster fraction: {}'.format(args.minimum_cluster_fraction))
         logger.info('Actual cluster fraction: {}'.format(cluster_fraction))
+
         return cluster_fraction >= float(args.minimum_cluster_fraction)
     else:
         return False
