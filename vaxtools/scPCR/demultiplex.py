@@ -383,7 +383,7 @@ def validate_clusters(cdhit_result, num_plate_seqs, args):
         if args.minimum_cluster_fraction == 'largest':
             return True
         cluster_fraction = 1. * cdhit_result.largest_cluster.size / num_well_seqs
-        cdhit_result.largest_cluster.cluster_fraction(cluster_fraction)
+        cdhit_result.largest_cluster.set_cluster_fraction(cluster_fraction)
         logger.info('Minimum cluster fraction: {}'.format(args.minimum_cluster_fraction))
         logger.info('Actual cluster fraction: {}'.format(cluster_fraction))
 
