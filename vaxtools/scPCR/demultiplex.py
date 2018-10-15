@@ -163,6 +163,8 @@ def parse_args():
                         If set to 'largest', the largest cluster is selected, regardless of size relative \
                         to the total number of sequences in the well. \
                         Default is 'largest'.")
+    parser.add_argument('--add-cluster-quality-info', action='store_true', default=False, dest='cluster_qual',
+                        help="If set, will write quaility information for the CDHIT cluster to the consensus file.")
     parser.add_argument('--minimum-well-size-denom', default=96, type=int,
                         help="If --minimum-well-size is set to 'relative', the cutoff will be a fraction \
                         of the total number of sequences in the plate. \
@@ -192,7 +194,7 @@ class Args(object):
         user=None, password=None, index=None, index_file=None, plate_map=None, index_position='start', index_length=0,
         index_reverse_complement=False, score_cutoff_heavy=200, score_cutoff_light=100, cdhit_threshold=0.9,
         minimum_well_size='relative', minimum_max_well_size=250, minimum_cluster_fraction='largest',
-        plate_name_delimiter=None, plate_name_delimiter_position=1,
+        plate_name_delimiter=None, plate_name_delimiter_position=1, cluster_qual=False,
         minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=True, debug=False):
         super(Args, self).__init__()
         if not all([output is not None,
@@ -233,6 +235,7 @@ class Args(object):
         self.cluster_cutoff_gradient = cluster_cutoff_gradient
         self.consensus = consensus
         self.debug = debug
+        self.cluster_qual = cluster_qual
 
 
 def validate_args(args):
@@ -349,7 +352,10 @@ def cdhit_clustering(seqs, bin_id, plate_name, num_plate_seqs, chain, args):
             logger.info('identifying centroid sequence...')
             consentroid = cdhit_result.largest_cluster.centroid
         if consentroid is not None:
-            consentroid.id = '{}-{} {} {}'.format(plate_name, bin_id, cdhit_result.largest_cluster.cluster_fraction, cdhit_result.confidence())
+            id_str = '{}-{}'.format(plate_name.replace(' ', '_'), bin_id.replace(' ', '_'))
+            if args.cluster_qual:
+                id_str = '{}-{} {} {}'.format(plate_name.replace(' ', '_'), bin_id.replace(' ', '_'), cdhit_result.largest_cluster.cluster_fraction, cdhit_result.confidence())
+            consentroid.id = id_str
         else:
             logger.info('Cluster passed validation. Failed to generate a consensus/centroid. FLAG FOR MANUAL EVALUATION!')
         if args.raw_sequence_dir is not None:
