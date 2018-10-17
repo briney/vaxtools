@@ -163,6 +163,8 @@ def parse_args():
                         If set to 'largest', the largest cluster is selected, regardless of size relative \
                         to the total number of sequences in the well. \
                         Default is 'largest'.")
+    parser.add_argument('--add-cluster-quality-info', action='store_true', default=False, dest='cluster_qual',
+                        help="If set, will write quaility information for the CDHIT cluster to the consensus file.")
     parser.add_argument('--minimum-well-size-denom', default=96, type=int,
                         help="If --minimum-well-size is set to 'relative', the cutoff will be a fraction \
                         of the total number of sequences in the plate. \
@@ -192,7 +194,7 @@ class Args(object):
         user=None, password=None, index=None, index_file=None, plate_map=None, index_position='start', index_length=0,
         index_reverse_complement=False, score_cutoff_heavy=200, score_cutoff_light=100, cdhit_threshold=0.9,
         minimum_well_size='relative', minimum_max_well_size=250, minimum_cluster_fraction='largest',
-        plate_name_delimiter=None, plate_name_delimiter_position=1,
+        plate_name_delimiter=None, plate_name_delimiter_position=1, cluster_qual=False,
         minimum_well_size_denom=96, cluster_cutoff_gradient=False, consensus=True, debug=False):
         super(Args, self).__init__()
         if not all([output is not None,
@@ -233,6 +235,7 @@ class Args(object):
         self.cluster_cutoff_gradient = cluster_cutoff_gradient
         self.consensus = consensus
         self.debug = debug
+        self.cluster_qual = cluster_qual
 
 
 def validate_args(args):
@@ -348,22 +351,28 @@ def cdhit_clustering(seqs, bin_id, plate_name, num_plate_seqs, chain, args):
         else:
             logger.info('identifying centroid sequence...')
             consentroid = cdhit_result.largest_cluster.centroid
-        consentroid.id = '{}-{}'.format(plate_name, bin_id)
+        if consentroid is not None:
+            id_str = '{}-{}'.format(plate_name.replace(' ', '_'), bin_id.replace(' ', '_'))
+            if args.cluster_qual:
+                id_str = '{}-{} {} {}'.format(plate_name.replace(' ', '_'), bin_id.replace(' ', '_'), cdhit_result.largest_cluster.cluster_fraction, cdhit_result.confidence())
+            consentroid.id = id_str
+        else:
+            logger.info('Cluster passed validation. Failed to generate a consensus/centroid. FLAG FOR MANUAL EVALUATION!')
         if args.raw_sequence_dir is not None:
             logger.info('Writing raw sequences to file...')
             write_raw_sequences(seqs, plate_name, bin_id, chain, args)
-        if args.alignment_pixel_dir is not None:
+        if (args.alignment_pixel_dir is not None) and (consentroid is not None):
             logger.info('Making alignment pixel plot...')
             cluster_seq_ids = [s.id for s in cdhit_result.largest_cluster.sequences]
             pixel_file = os.path.join(args.alignment_pixel_dir, '{}-{}_{}.png'.format(plate_name, bin_id, chain))
             pixel.make_pixel(seqs, pixel_file, consentroid=consentroid, cluster_seq_ids=cluster_seq_ids)
-        logger.info('PASSED')
+        logger.info('CLUSTER VALIDATION PASSED')
     else:
         consentroid = None
         if args.raw_sequence_dir is not None:
             logger.info('Writing raw sequences to file...')
             write_raw_sequences(seqs, plate_name, bin_id, chain, args)
-        logger.info('FALILED')
+        logger.info('CLUSTER VALIDATION FAILED')
     log_cluster_info(cdhit_result.clusters, passed, plate_name, bin_id, chain, len(seqs), consentroid, args)
     cdhit_result.delete()
     return consentroid
@@ -380,8 +389,10 @@ def validate_clusters(cdhit_result, num_plate_seqs, args):
         if args.minimum_cluster_fraction == 'largest':
             return True
         cluster_fraction = 1. * cdhit_result.largest_cluster.size / num_well_seqs
+        cdhit_result.largest_cluster.set_cluster_fraction(cluster_fraction)
         logger.info('Minimum cluster fraction: {}'.format(args.minimum_cluster_fraction))
         logger.info('Actual cluster fraction: {}'.format(cluster_fraction))
+
         return cluster_fraction >= float(args.minimum_cluster_fraction)
     else:
         return False
@@ -967,12 +978,14 @@ def main(args, logfile=None):
                 logger.info('Minimum well size: {}'.format(min_well_size))
                 logger.info('Total number of sequences: {}'.format(len(seqs)))
                 if len(seqs) < min_well_size:
-                    logger.info('FAILED')
+                    logger.info('FAILED: THE NUMBER OF SEQUENCES IS BELOW {}'.format(min_well_size))
                     continue
                 consentroid = cdhit_clustering(seqs, b, input_data.name, len(sequences), chain, args)
                 if consentroid is not None:
                     plate_seqs.append(consentroid)
                     write_consentroid(consentroid, args)
+                else:
+                    logger.info('FAILED TO GENERATE A CONSENSUS SEQUENCE. CHECK FOR ERRORS.')
             log_output(bins, plate_seqs, min_well_size)
             logger.info('')
     logger.info('')
