@@ -383,8 +383,8 @@ def validate_clusters(cdhit_result, num_plate_seqs, args):
     if args.minimum_well_size == 'relative':
         min_size = int(num_plate_seqs / float(args.minimum_well_size_denom))
     else:
-        min_size = args.minimum_well_size
-    # logger.info('Minimum well size: {}'.format(min_size))
+        min_size = int(args.minimum_well_size)
+        logger.info('Minimum well size: {}'.format(min_size))
     if num_well_seqs >= min_size:
         if args.minimum_cluster_fraction == 'largest':
             return True
