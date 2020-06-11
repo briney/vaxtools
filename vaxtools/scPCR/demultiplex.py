@@ -336,7 +336,7 @@ def validate_args(args):
 def cdhit_clustering(seqs, bin_id, plate_name, num_plate_seqs, chain, args):
     logger.info('clustering...')
     seqs = [Sequence(s[1], id=s[0]) for s in seqs]
-    cdhit_result = cluster(seqs, threshold=args.cdhit_threshold, temp_dir=args.temp_dir, quiet=True)
+    cdhit_result = cluster(seqs, threshold=args.cdhit_threshold, temp_dir=args.temp_dir)
     # clusters = sorted(cdhit_result.clusters, key=lambda x: x.size, reverse=True)
     logger.info('Largest cluster: {}'.format(cdhit_result.largest_cluster.size))
     passed = validate_clusters(cdhit_result, num_plate_seqs, args)
