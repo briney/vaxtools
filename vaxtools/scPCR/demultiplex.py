@@ -365,7 +365,7 @@ def cdhit_clustering(seqs, bin_id, plate_name, num_plate_seqs, chain, args):
             write_raw_sequences(seqs, plate_name, bin_id, chain, args)
         logger.info('FALILED')
     log_cluster_info(cdhit_result.clusters, passed, plate_name, bin_id, chain, len(seqs), consentroid, args)
-    cdhit_result.delete()
+    # cdhit_result.delete()
     return consentroid
 
 
