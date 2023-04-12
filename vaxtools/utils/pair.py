@@ -28,27 +28,29 @@ import sys
 import traceback
 
 from Bio.Seq import Seq
-from Bio.Alphabet import generic_dna
 
-from abtools import germlines
-from abtools.alignment import global_alignment
-from abtools.sequence import Sequence
+# from Bio.Alphabet import generic_dna
+
+# from abtools import germlines
+from abutils.utils.alignment import global_alignment
+from abutils.core.sequence import Sequence
 
 
 class Pair(object):
-    '''
+    """
     Holds a pair of sequences, corresponding to HC and LC of a single mAb.
 
     Input is a list of dicts, with each dict containing sequence information from a single
     chain, formatted as would be returned from a query on a MongoDB database containing
     AbStar output.
-    '''
+    """
+
     def __init__(self, seqs, name=None, h_selection_func=None, l_selection_func=None):
         self._seqs = seqs
         self._heavy = None
         self._light = None
-        self._heavies = [s for s in seqs if s['chain'] == 'heavy']
-        self._lights = [s for s in seqs if s['chain'] in ['kappa', 'lambda']]
+        self._heavies = [s for s in seqs if s["chain"] == "heavy"]
+        self._lights = [s for s in seqs if s["chain"] in ["kappa", "lambda"]]
         self._name = name
         self._fasta = None
         self._sample = None
@@ -70,7 +72,6 @@ class Pair(object):
 
     def __hash(self):
         return hash((self.heavy, self.light))
-
 
     @property
     def heavy(self):
@@ -115,25 +116,30 @@ class Pair(object):
     @property
     def lineage(self):
         if self._lineage is None:
-            self._lineage = self.heavy['clonify']['id']
+            self._lineage = self.heavy["clonify"]["id"]
         return self._lineage
 
     @property
     def vrc01_like(self):
         if self._vrc01_like is None:
-        	if any([self.heavy is None, self.light is None]):
-        		self._vrc01_like = False
-        	else:
-	            self._vrc01_like = all([self.heavy['v_gene']['gene'] == 'IGHV1-2', self.light['cdr3_len'] == 5])
+            if any([self.heavy is None, self.light is None]):
+                self._vrc01_like = False
+            else:
+                self._vrc01_like = all(
+                    [
+                        self.heavy["v_gene"]["gene"] == "IGHV1-2",
+                        self.light["cdr3_len"] == 5,
+                    ]
+                )
         return self._vrc01_like
 
     @property
     def name(self):
         if self._name is None:
             if self.heavy is not None:
-                self._name = self.heavy['seq_id']
+                self._name = self.heavy["seq_id"]
             elif self.light is not None:
-                self._name = self.light['seq_id']
+                self._name = self.light["seq_id"]
         return self._name
 
     @name.setter
@@ -153,16 +159,16 @@ class Pair(object):
             if self.timepoint is not None:
                 slist.append(str(self.timepoint))
             if slist:
-                self._sample = '|'.join(slist)
+                self._sample = "|".join(slist)
         return self._sample
 
     @property
     def subject(self):
         if self._subject is None:
-            if self.heavy is not None and 'subject' in list(self.heavy.keys()):
-                self._subject = self.heavy['subject']
-            elif self.light is not None and 'subject' in list(self.light.keys()):
-                self._subject = self.light['subject']
+            if self.heavy is not None and "subject" in list(self.heavy.keys()):
+                self._subject = self.heavy["subject"]
+            elif self.light is not None and "subject" in list(self.light.keys()):
+                self._subject = self.light["subject"]
         return self._subject
 
     @subject.setter
@@ -172,10 +178,10 @@ class Pair(object):
     @property
     def group(self):
         if self._group is None:
-            if self.heavy is not None and 'group' in list(self.heavy.keys()):
-                self._group = self.heavy['group']
-            elif self.light is not None and 'group' in list(self.light.keys()):
-                self._group = self.light['group']
+            if self.heavy is not None and "group" in list(self.heavy.keys()):
+                self._group = self.heavy["group"]
+            elif self.light is not None and "group" in list(self.light.keys()):
+                self._group = self.light["group"]
         return self._group
 
     @group.setter
@@ -185,10 +191,10 @@ class Pair(object):
     @property
     def experiment(self):
         if self._experiment is None:
-            if self.heavy is not None and 'experiment' in list(self.heavy.keys()):
-                self._experiment = self.heavy['experiment']
-            elif self.light is not None and 'experiment' in list(self.light.keys()):
-                self._experiment = self.light['experiment']
+            if self.heavy is not None and "experiment" in list(self.heavy.keys()):
+                self._experiment = self.heavy["experiment"]
+            elif self.light is not None and "experiment" in list(self.light.keys()):
+                self._experiment = self.light["experiment"]
         return self._experiment
 
     @experiment.setter
@@ -198,18 +204,17 @@ class Pair(object):
     @property
     def timepoint(self):
         if self._timepoint is None:
-            if self.heavy is not None and 'timepoint' in list(self.heavy.keys()):
-                self._timepoint = self.heavy['timepoint']
-            elif self.light is not None and 'timepoint' in list(self.light.keys()):
-                self._timepoint = self.light['timepoint']
+            if self.heavy is not None and "timepoint" in list(self.heavy.keys()):
+                self._timepoint = self.heavy["timepoint"]
+            elif self.light is not None and "timepoint" in list(self.light.keys()):
+                self._timepoint = self.light["timepoint"]
         return self._timepoint
 
     @timepoint.setter
     def timepoint(self, timepoint):
         self._timepoint = timepoint
 
-
-    def refine(self, heavy=True, light=True, species='human'):
+    def refine(self, heavy=True, light=True, species="human"):
         for seq in [s for s in [self.heavy, self.light] if s is not None]:
             try:
                 self.remove_ambigs(seq)
@@ -217,75 +222,77 @@ class Pair(object):
                 self._refine_j(seq, species)
                 self._retranslate(seq)
             except:
-                print('REFINEMENT FAILED: {}, {} chain'.format(s['seq_id'], s['chain']))
-                print(traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1]))
-
+                print("REFINEMENT FAILED: {}, {} chain".format(s["seq_id"], s["chain"]))
+                print(
+                    traceback.format_exception_only(
+                        sys.exc_info()[0], sys.exc_info()[1]
+                    )
+                )
 
     @staticmethod
     def remove_ambigs(seq):
         # fix Ns in the nucleotide sequence
-        vdj = ''
-        for s, g in zip(seq['vdj_nt'], seq['vdj_germ_nt']):
-            if s.upper() == 'N':
+        vdj = ""
+        for s, g in zip(seq["vdj_nt"], seq["vdj_germ_nt"]):
+            if s.upper() == "N":
                 vdj += g
             else:
                 vdj += s
-        seq['vdj_nt'] = vdj
+        seq["vdj_nt"] = vdj
         # fix Xs in the amino acid sequence
-        vdj = ''
-        for s, g in zip(seq['vdj_aa'], seq['vdj_germ_aa']):
-            if s.upper() == 'X':
+        vdj = ""
+        for s, g in zip(seq["vdj_aa"], seq["vdj_germ_aa"]):
+            if s.upper() == "X":
                 vdj += g
             else:
                 vdj += s
-        seq['vdj_aa'] = vdj
+        seq["vdj_aa"] = vdj
 
     @staticmethod
     def _refine_v(seq, species):
-        '''
+        """
         Completes the 5' end of a a truncated sequence with germline nucleotides.
         Input is a MongoDB dict (seq) and the species.
-        '''
-        vgerm = germlines.get_germline(seq['v_gene']['full'], species)
-        aln = global_alignment(seq['vdj_nt'], vgerm)
-        prepend = ''
+        """
+        vgerm = germlines.get_germline(seq["v_gene"]["full"], species)
+        aln = global_alignment(seq["vdj_nt"], vgerm)
+        prepend = ""
         for s, g in zip(aln.aligned_query, aln.aligned_target):
-            if s != '-':
+            if s != "-":
                 break
             else:
                 prepend += g
-        seq['vdj_nt'] = prepend + seq['vdj_nt']
+        seq["vdj_nt"] = prepend + seq["vdj_nt"]
 
     @staticmethod
     def _refine_j(seq, species):
-        '''
+        """
         Completes the 3' end of a a truncated sequence with germline nucleotides.
         Input is a MongoDB dict (seq) and the species.
-        '''
-        jgerm = germlines.get_germline(seq['j_gene']['full'], species)
-        aln = global_alignment(seq['vdj_nt'], jgerm)
-        append = ''
+        """
+        jgerm = germlines.get_germline(seq["j_gene"]["full"], species)
+        aln = global_alignment(seq["vdj_nt"], jgerm)
+        append = ""
         for s, g in zip(aln.aligned_query[::-1], aln.aligned_target[::-1]):
-            if s != '-':
+            if s != "-":
                 break
             else:
                 append += g
-        seq['vdj_nt'] = seq['vdj_nt'] + append[::-1]
+        seq["vdj_nt"] = seq["vdj_nt"] + append[::-1]
 
     @staticmethod
     def _retranslate(seq):
-        '''
+        """
         Retranslates a nucleotide sequence following refinement.
         Input is a Pair sequence (basically a dict of MongoDB output).
-        '''
-        if len(seq['vdj_nt']) % 3 != 0:
-            trunc = len(seq['vdj_nt']) % 3
-            seq['vdj_nt'] = seq['vdj_nt'][:-trunc]
-        seq['vdj_aa'] = Seq(seq['vdj_nt'], generic_dna).translate()
+        """
+        if len(seq["vdj_nt"]) % 3 != 0:
+            trunc = len(seq["vdj_nt"]) % 3
+            seq["vdj_nt"] = seq["vdj_nt"][:-trunc]
+        seq["vdj_aa"] = Seq(seq["vdj_nt"], generic_dna).translate()
 
-
-    def fasta(self, key='vdj_nt', append_chain=True):
-        '''
+    def fasta(self, key="vdj_nt", append_chain=True):
+        """
         Returns the sequence pair as a fasta string. If the Pair object contains
         both heavy and light chain sequences, both will be returned as a single string.
 
@@ -298,18 +305,27 @@ class Pair(object):
 
         To just use the pair name (which will result in duplicate sequence names for Pair objects
         with both heavy and light chains), set <append_chain> to False.
-        '''
+        """
         fastas = []
-        for s, chain in [(self.heavy, 'heavy'), (self.light, 'light')]:
+        for s, chain in [(self.heavy, "heavy"), (self.light, "light")]:
             if s is not None:
-                c = '_{}'.format(chain) if append_chain else ''
-                fastas.append('>{}{}\n{}'.format(s['seq_id'], c, s[key]))
-        return '\n'.join(fastas)
+                c = "_{}".format(chain) if append_chain else ""
+                fastas.append(">{}{}\n{}".format(s["seq_id"], c, s[key]))
+        return "\n".join(fastas)
 
 
-def get_pairs(db, collection, experiment=None, subject=None, group=None, name='seq_id',
-    delim=None, delim_occurance=1, pairs_only=False):
-    '''
+def get_pairs(
+    db,
+    collection,
+    experiment=None,
+    subject=None,
+    group=None,
+    name="seq_id",
+    delim=None,
+    delim_occurance=1,
+    pairs_only=False,
+):
+    """
     Gets sequences and assigns them to the appropriate mAb pair, based on the sequence name.
 
     Inputs:
@@ -333,30 +349,35 @@ def get_pairs(db, collection, experiment=None, subject=None, group=None, name='s
         will be returned. Default is False.
 
     Returns a list of Pair objects, one for each mAb pair.
-    '''
+    """
     match = {}
     if subject is not None:
         if type(subject) in (list, tuple):
-            match['subject'] = {'$in': subject}
+            match["subject"] = {"$in": subject}
         elif type(subject) in (str, str):
-            match['subject'] = subject
+            match["subject"] = subject
     if group is not None:
         if type(group) in (list, tuple):
-            match['group'] = {'$in': group}
+            match["group"] = {"$in": group}
         elif type(group) in (str, str):
-            match['group'] = group
+            match["group"] = group
     if experiment is not None:
         if type(experiment) in (list, tuple):
-            match['experiment'] = {'$in': experiment}
+            match["experiment"] = {"$in": experiment}
         elif type(experiment) in (str, str):
-            match['experiment'] = experiment
+            match["experiment"] = experiment
     seqs = list(db[collection].find(match))
-    return assign_pairs(seqs, name=name, delim=delim,
-        delim_occurance=delim_occurance, pairs_only=pairs_only)
+    return assign_pairs(
+        seqs,
+        name=name,
+        delim=delim,
+        delim_occurance=delim_occurance,
+        pairs_only=pairs_only,
+    )
 
 
-def assign_pairs(seqs, name='seq_id', delim=None, delim_occurance=1, pairs_only=False):
-    '''
+def assign_pairs(seqs, name="seq_id", delim=None, delim_occurance=1, pairs_only=False):
+    """
     Assigns sequences to the appropriate mAb pair, based on the sequence name.
 
     Inputs:
@@ -374,7 +395,7 @@ def assign_pairs(seqs, name='seq_id', delim=None, delim_occurance=1, pairs_only=
         will be returned. Default is False.
 
     Returns a list of Pair objects, one for each mAb pair.
-    '''
+    """
     pdict = {}
     for s in seqs:
         if delim is not None:
@@ -382,7 +403,9 @@ def assign_pairs(seqs, name='seq_id', delim=None, delim_occurance=1, pairs_only=
         else:
             pname = s[name]
         if pname not in pdict:
-            pdict[pname] = [s, ]
+            pdict[pname] = [
+                s,
+            ]
         else:
             pdict[pname].append(s)
     pairs = [Pair(pdict[n], name=n) for n in list(pdict.keys())]
@@ -392,7 +415,7 @@ def assign_pairs(seqs, name='seq_id', delim=None, delim_occurance=1, pairs_only=
 
 
 def deduplicate(pairs, aa=False, ignore_primer_regions=False):
-    '''
+    """
     Removes duplicate sequences from a list of Pair objects.
 
     If a Pair has heavy and light chains, both chains must identically match heavy and light chains
@@ -406,7 +429,7 @@ def deduplicate(pairs, aa=False, ignore_primer_regions=False):
 
     By default, comparison is made on the nucleotide sequence. To use the amino acid sequence instead,
     set aa=True.
-    '''
+    """
     nr_pairs = []
     just_pairs = [p for p in pairs if p.is_pair]
     single_chains = [p for p in pairs if not p.is_pair]
@@ -415,22 +438,38 @@ def deduplicate(pairs, aa=False, ignore_primer_regions=False):
         duplicates = []
         for nr in nr_pairs:
             identical = True
-            vdj = 'vdj_aa' if aa else 'vdj_nt'
+            vdj = "vdj_aa" if aa else "vdj_nt"
             offset = 4 if aa else 12
             if p.heavy is not None:
                 if nr.heavy is None:
                     identical = False
                 else:
-                    heavy = p.heavy[vdj][offset:-offset] if ignore_primer_regions else p.heavy[vdj]
-                    nr_heavy = nr.heavy[vdj][offset:-offset] if ignore_primer_regions else nr.heavy[vdj]
+                    heavy = (
+                        p.heavy[vdj][offset:-offset]
+                        if ignore_primer_regions
+                        else p.heavy[vdj]
+                    )
+                    nr_heavy = (
+                        nr.heavy[vdj][offset:-offset]
+                        if ignore_primer_regions
+                        else nr.heavy[vdj]
+                    )
                     if heavy != nr_heavy:
                         identical = False
             if p.light is not None:
                 if nr.light is None:
                     identical = False
                 else:
-                    light = p.light[vdj][offset:-offset] if ignore_primer_regions else p.light[vdj]
-                    nr_light = nr.light[vdj][offset:-offset] if ignore_primer_regions else nr.light[vdj]
+                    light = (
+                        p.light[vdj][offset:-offset]
+                        if ignore_primer_regions
+                        else p.light[vdj]
+                    )
+                    nr_light = (
+                        nr.light[vdj][offset:-offset]
+                        if ignore_primer_regions
+                        else nr.light[vdj]
+                    )
                     if light != nr_light:
                         identical = False
             duplicates.append(identical)
@@ -441,7 +480,7 @@ def deduplicate(pairs, aa=False, ignore_primer_regions=False):
     return nr_pairs
 
 
-def refine(pairs, heavy=True, light=True, species='human'):
+def refine(pairs, heavy=True, light=True, species="human"):
     refined_pairs = copy.deepcopy(pairs)
     for p in refined_pairs:
         p.refine(heavy, light, species)
